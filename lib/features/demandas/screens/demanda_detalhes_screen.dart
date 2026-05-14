@@ -73,6 +73,20 @@ class _DemandaDetalhesScreenState extends State<DemandaDetalhesScreen> {
     }
   }
 
+  /// Cria uma nova demanda pré-preenchida a partir de uma cancelada.
+  /// A demanda original NÃO é alterada — preserva histórico e auditoria.
+  /// Anexos não são copiados; o demandante pode reanexar se quiser.
+  void _republicar(Demanda demanda) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => DemandaFormScreen(
+          modo: DemandaFormModo.criar,
+          valoresIniciais: demanda,
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -183,12 +197,22 @@ class _DemandaDetalhesScreenState extends State<DemandaDetalhesScreen> {
               ),
               const SizedBox(height: 24),
 
-              if (demanda.status == StatusDemanda.cancelada &&
-                  demanda.motivoCancelamento != null) ...[
-                _BlocoInfo(
-                  cor: AppColors.error,
-                  titulo: 'Motivo do cancelamento',
-                  conteudo: demanda.motivoCancelamento!,
+              if (demanda.status == StatusDemanda.cancelada) ...[
+                if (demanda.motivoCancelamento != null) ...[
+                  _BlocoInfo(
+                    cor: AppColors.error,
+                    titulo: 'Motivo do cancelamento',
+                    conteudo: demanda.motivoCancelamento!,
+                  ),
+                  const SizedBox(height: 16),
+                ],
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: () => _republicar(demanda),
+                    icon: const Icon(Icons.replay),
+                    label: const Text('Republicar como nova demanda'),
+                  ),
                 ),
                 const SizedBox(height: 24),
               ],

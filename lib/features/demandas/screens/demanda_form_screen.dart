@@ -19,13 +19,26 @@ class DemandaFormScreen extends StatefulWidget {
   final DemandaFormModo modo;
   final Demanda? demandaExistente; // obrigatório quando modo == editar
 
+  /// Valores iniciais para pré-preencher o formulário em modo criar.
+  /// Usado pela republicação de demandas canceladas: copia título,
+  /// descrição, público-alvo e impacto da demanda anterior, mas NÃO
+  /// copia anexos nem metadados do ciclo de vida (status, cancelamento,
+  /// professor responsável, datas).
+  final Demanda? valoresIniciais;
+
   const DemandaFormScreen({
     super.key,
     required this.modo,
     this.demandaExistente,
-  }) : assert(
+    this.valoresIniciais,
+  })  : assert(
           modo == DemandaFormModo.criar || demandaExistente != null,
           'Edição exige demandaExistente',
+        ),
+        assert(
+          modo == DemandaFormModo.editar || demandaExistente == null,
+          'demandaExistente só faz sentido em modo editar — '
+          'use valoresIniciais para pré-preencher modo criar',
         );
 
   @override
@@ -63,15 +76,17 @@ class _DemandaFormScreenState extends State<DemandaFormScreen> {
   @override
   void initState() {
     super.initState();
-    final d = widget.demandaExistente;
-    _titulo = TextEditingController(text: d?.titulo ?? '');
-    _descricao = TextEditingController(text: d?.descricao ?? '');
-    _publicoAlvo = TextEditingController(text: d?.publicoAlvo ?? '');
-    _impacto = TextEditingController(text: d?.impacto ?? '');
+    // Modo editar lê de demandaExistente. Modo criar pode receber
+    // valoresIniciais (republicação a partir de cancelada).
+    final base = widget.demandaExistente ?? widget.valoresIniciais;
+    _titulo = TextEditingController(text: base?.titulo ?? '');
+    _descricao = TextEditingController(text: base?.descricao ?? '');
+    _publicoAlvo = TextEditingController(text: base?.publicoAlvo ?? '');
+    _impacto = TextEditingController(text: base?.impacto ?? '');
 
-    if (d != null) {
-      if (_opcoesPublicoAlvo.contains(d.publicoAlvo)) {
-        _publicoSelecionado = d.publicoAlvo;
+    if (base != null) {
+      if (_opcoesPublicoAlvo.contains(base.publicoAlvo)) {
+        _publicoSelecionado = base.publicoAlvo;
       } else {
         _publicoSelecionado = 'Outro';
         _publicoEhPersonalizado = true;
