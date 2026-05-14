@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1077839155998",
+    "project_id": "nexus-tech-2025",
+    "storage_bucket": "nexus-tech-2025.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1077839155998:android:055e9c9d9a87b08294af0f",
+        "android_client_info": {
+          "package_name": "br.edu.ifrs.osorio.nexus_tech"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAKncy2p9iQALF2d1C8QzA4GWXmEL5Ru_E"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

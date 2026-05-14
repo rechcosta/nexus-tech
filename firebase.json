@@ -1,0 +1,29 @@
+{
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "nexus-tech-2025",
+          "appId": "1:1077839155998:android:055e9c9d9a87b08294af0f",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "nexus-tech-2025",
+          "configurations": {
+            "android": "1:1077839155998:android:055e9c9d9a87b08294af0f",
+            "ios": "1:1077839155998:ios:0571475fb0c96b5894af0f",
+            "web": "1:1077839155998:web:e33c2985d43aee3394af0f"
+          }
+        }
+      }
+    }
+  },
+  "firestore": {
+    "database": "(default)",
+    "location": "southamerica-east1",
+    "rules": "firestore.rules",
+    "indexes": "firestore.indexes.json"
+  }
+}

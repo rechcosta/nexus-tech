@@ -1,0 +1,46 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isProfessorEmail() {
+      return isSignedIn() &&
+        request.auth.token.email.matches('.*@osorio[.]ifrs[.]edu[.]br');
+    }
+
+    // ============== ANEXOS DE DEMANDAS ==============
+    match /demandas/{demandaId}/anexos/{arquivo} {
+      // Demandante e professores podem ler.
+      // Refinamento futuro: validar que demandaId pertence ao demandante via
+      // Firestore lookup (caro). Por ora, autenticação básica.
+      allow read: if isSignedIn();
+
+      // Upload: apenas autenticados, com limites de tamanho e formato.
+      // UC20 R01: PDF, DOCX, JPG, PNG.
+      // UC20 R02: até 10MB.
+      allow create: if isSignedIn() &&
+        request.resource.size < 10 * 1024 * 1024 &&
+        request.resource.contentType in [
+          'application/pdf',
+          'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+          'image/jpeg',
+          'image/png'
+        ];
+
+      // Anexos são imutáveis após upload.
+      allow update: if false;
+
+      // Apenas o uploader (via custom metadata) pode deletar.
+      allow delete: if isSignedIn() &&
+        request.auth.uid == resource.metadata.enviadoPorUid;
+    }
+
+    // ============== BLOQUEIO PADRÃO ==============
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

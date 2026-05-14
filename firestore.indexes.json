@@ -1,0 +1,31 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "demandas",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "demandanteUid", "order": "ASCENDING" },
+        { "fieldPath": "criadoEm", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "demandas",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "demandanteUid", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "criadoEm", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "demandas",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "demandanteUid", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "criadoEm", "order": "ASCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}

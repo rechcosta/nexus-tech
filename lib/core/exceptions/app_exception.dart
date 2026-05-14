@@ -1,0 +1,43 @@
+/// Exceções tipadas pra dar feedback específico ao usuário.
+/// Cada categoria de erro tem mensagem e ação sugerida diferentes.
+sealed class AppException implements Exception {
+  final String message;
+  const AppException(this.message);
+
+  @override
+  String toString() => message;
+}
+
+/// Falha de rede ou conectividade
+class NetworkException extends AppException {
+  const NetworkException()
+      : super('Sem conexão. Verifique sua internet e tente novamente.');
+}
+
+/// Operação negada por regras de segurança (Firestore Rules)
+class PermissionException extends AppException {
+  const PermissionException()
+      : super('Você não tem permissão para realizar esta ação.');
+}
+
+/// Documento não encontrado no Firestore
+class NotFoundException extends AppException {
+  const NotFoundException(String recurso) : super('$recurso não encontrado.');
+}
+
+/// Falha genérica do servidor (erro 500, timeout, etc.)
+class ServerException extends AppException {
+  const ServerException()
+      : super('Erro no servidor. Tente novamente em alguns instantes.');
+}
+
+/// Dado inválido fornecido pelo cliente
+class ValidationException extends AppException {
+  const ValidationException(super.message);
+}
+
+/// Falha de autenticação (login Google)
+class AuthException extends AppException {
+  const AuthException()
+      : super('Falha na autenticação. Tente novamente.');
+}

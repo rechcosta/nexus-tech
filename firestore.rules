@@ -1,0 +1,118 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ============== HELPERS ==============
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    function isAdminEmail() {
+      // ! IMPORTANTE: manter sincronizado com app_constants.dart > adminEmails
+      return isSignedIn() && request.auth.token.email in [
+        'karen.borges@osorio.ifrs.edu.br',
+        // 'rechcostagustavo@gmail.com'
+      ];
+    }
+
+    function isProfessorEmail() {
+      return isSignedIn() &&
+        request.auth.token.email.matches('.*@osorio[.]ifrs[.]edu[.]br');
+    }
+
+    function existingDemanda() {
+      return resource.data;
+    }
+
+    // ============== USERS ==============
+
+    match /users/{uid} {
+      allow read: if isSignedIn();
+      allow create: if isOwner(uid);
+      allow update: if isOwner(uid) || isAdminEmail();
+      allow delete: if false;
+    }
+
+    // ============== ÁREAS ==============
+
+    match /areas_tecnicas/{id} {
+      allow read: if isSignedIn();
+      allow create: if isProfessorEmail();
+      allow update, delete: if isAdminEmail();
+    }
+
+    match /areas_interesse/{id} {
+      allow read: if isSignedIn();
+      allow create: if isProfessorEmail();
+      allow update, delete: if isAdminEmail();
+    }
+
+    // ============== DEMANDAS ==============
+
+    match /demandas/{id} {
+      // Demandante vê só suas demandas. Professor vê todas (prateleira pública).
+      // Admin vê tudo.
+      allow read: if isSignedIn() && (
+        isOwner(resource.data.demandanteUid) ||
+        isProfessorEmail() ||
+        isAdminEmail()
+      );
+
+      // Apenas demandante autenticado cria sua própria demanda (UC15 R01).
+      allow create: if isSignedIn() &&
+        request.resource.data.demandanteUid == request.auth.uid &&
+        request.resource.data.status == 'cadastrada';
+
+      // Atualização permitida ao demandante autor APENAS se demanda
+      // estiver no status cadastrada (UC16/UC17 R02).
+      // OU professor/admin para mudanças de status (sprint 3+).
+      allow update: if isSignedIn() && (
+        (
+          isOwner(resource.data.demandanteUid) &&
+          resource.data.status == 'cadastrada'
+        ) ||
+        isProfessorEmail() ||
+        isAdminEmail()
+      );
+
+      // Soft-delete via update. Hard delete só para admin.
+      allow delete: if isAdminEmail();
+
+      // ============== ANEXOS (subcoleção) ==============
+      match /anexos/{anexoId} {
+        allow read: if isSignedIn() && (
+          isOwner(get(/databases/$(database)/documents/demandas/$(id)).data.demandanteUid) ||
+          isProfessorEmail() ||
+          isAdminEmail()
+        );
+
+        // Apenas o demandante dono OU o professor responsável pode anexar
+        // (UC20 R04). Sprint 2: apenas demandante; sprint 3 inclui professor.
+        allow create: if isSignedIn() && isOwner(
+          get(/databases/$(database)/documents/demandas/$(id)).data.demandanteUid
+        );
+
+        allow delete: if isSignedIn() && isOwner(
+          get(/databases/$(database)/documents/demandas/$(id)).data.demandanteUid
+        );
+
+        allow update: if false; // anexos são imutáveis
+      }
+    }
+
+    // ============== AUDIT LOGS ==============
+    match /audit_logs/{id} {
+      allow read: if isAdminEmail();
+      // Qualquer usuário autenticado pode escrever logs (são gerados pelo app)
+      allow create: if isSignedIn() &&
+        request.resource.data.autorUid == request.auth.uid;
+      allow update, delete: if false;
+    }
+  }
+}
