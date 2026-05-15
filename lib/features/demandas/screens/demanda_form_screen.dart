@@ -24,6 +24,10 @@ class DemandaFormScreen extends StatefulWidget {
   /// descrição, público-alvo e impacto da demanda anterior, mas NÃO
   /// copia anexos nem metadados do ciclo de vida (status, cancelamento,
   /// professor responsável, datas).
+  ///
+  /// Quando essa demanda está com status `cancelada`, ao publicar a nova
+  /// o repositório marca a original com `republicadaComoId` para impedir
+  /// republicação dupla.
   final Demanda? valoresIniciais;
 
   const DemandaFormScreen({
@@ -72,6 +76,15 @@ class _DemandaFormScreenState extends State<DemandaFormScreen> {
   static const _maxImpacto = 500;
 
   bool get _ehEdicao => widget.modo == DemandaFormModo.editar;
+
+  /// ID da demanda cancelada original quando este form veio de uma
+  /// republicação. null em criação normal ou edição.
+  String? get _originalCanceladaId {
+    final v = widget.valoresIniciais;
+    if (v == null) return null;
+    if (v.status != StatusDemanda.cancelada) return null;
+    return v.id;
+  }
 
   @override
   void initState() {
@@ -183,6 +196,7 @@ class _DemandaFormScreenState extends State<DemandaFormScreen> {
             descricao: _descricao.text,
             publicoAlvo: publicoFinal,
             impacto: _impacto.text,
+            originalCanceladaId: _originalCanceladaId,
           );
 
     if (!mounted) return;

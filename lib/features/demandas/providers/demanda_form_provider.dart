@@ -93,6 +93,10 @@ class DemandaFormProvider extends ChangeNotifier {
 
   // ============== UC15 - criar ==============
 
+  /// Cria a demanda. Se [originalCanceladaId] for fornecido, marca a
+  /// demanda cancelada original com `republicadaComoId` na mesma
+  /// transação atômica — impede que o demandante republique a mesma
+  /// demanda múltiplas vezes.
   Future<bool> criar({
     required String demandanteUid,
     required String demandanteNome,
@@ -101,6 +105,7 @@ class DemandaFormProvider extends ChangeNotifier {
     required String descricao,
     required String publicoAlvo,
     required String impacto,
+    String? originalCanceladaId,
   }) async {
     try {
       _status = DemandaFormStatus.salvando;
@@ -120,7 +125,10 @@ class DemandaFormProvider extends ChangeNotifier {
         criadoEm: DateTime.now(),
       );
 
-      final id = await _demandaRepository.criar(demanda);
+      final id = await _demandaRepository.criar(
+        demanda,
+        originalCanceladaId: originalCanceladaId,
+      );
 
       // Upload de anexos pendentes
       // Se um anexo falhar, os outros ainda sobem e a demanda foi criada.

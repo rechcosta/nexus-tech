@@ -111,9 +111,19 @@ class Demanda {
   final StatusDemanda status;
   final String? motivoCancelamento;
 
-  // --- atribuição (preenchido pelo professor em sprint futura) ---
+  // --- atribuição (preenchido pelo professor em sprina futura) ---
   final String? professorUid;
   final String? professorNome;
+
+  /// Se essa demanda foi cancelada e o demandante usou o botão
+  /// "Republicar como nova demanda", este campo guarda o ID da nova.
+  /// Serve para duas coisas:
+  /// 1. Impedir republicação dupla (UI esconde o botão se != null).
+  /// 2. Trilha de auditoria visível: a partir da cancelada dá pra
+  ///    chegar à nova (futuro: link clicável).
+  /// A Firestore Rule garante que esse campo só pode ser preenchido
+  /// UMA vez, evitando reescrita maliciosa.
+  final String? republicadaComoId;
 
   // --- timestamps ---
   final DateTime criadoEm;
@@ -134,6 +144,7 @@ class Demanda {
     this.motivoCancelamento,
     this.professorUid,
     this.professorNome,
+    this.republicadaComoId,
     this.atualizadoEm,
     this.canceladoEm,
   });
@@ -151,6 +162,7 @@ class Demanda {
         'motivoCancelamento': motivoCancelamento,
         'professorUid': professorUid,
         'professorNome': professorNome,
+        'republicadaComoId': republicadaComoId,
         'criadoEm': criadoEm.toIso8601String(),
         'atualizadoEm': atualizadoEm?.toIso8601String(),
         'canceladoEm': canceladoEm?.toIso8601String(),
@@ -175,6 +187,8 @@ class Demanda {
         motivoCancelamento: map['motivoCancelamento'] as String?,
         professorUid: map['professorUid'] as String?,
         professorNome: map['professorNome'] as String?,
+        // Demandas legadas (criadas antes deste campo existir) retornam null.
+        republicadaComoId: map['republicadaComoId'] as String?,
         criadoEm: DateTime.parse(map['criadoEm'] as String),
         atualizadoEm: map['atualizadoEm'] != null
             ? DateTime.parse(map['atualizadoEm'] as String)
@@ -191,6 +205,7 @@ class Demanda {
     String? impacto,
     StatusDemanda? status,
     String? motivoCancelamento,
+    String? republicadaComoId,
     DateTime? atualizadoEm,
     DateTime? canceladoEm,
   }) {
@@ -207,6 +222,7 @@ class Demanda {
       motivoCancelamento: motivoCancelamento ?? this.motivoCancelamento,
       professorUid: professorUid,
       professorNome: professorNome,
+      republicadaComoId: republicadaComoId ?? this.republicadaComoId,
       criadoEm: criadoEm,
       atualizadoEm: atualizadoEm ?? this.atualizadoEm,
       canceladoEm: canceladoEm ?? this.canceladoEm,

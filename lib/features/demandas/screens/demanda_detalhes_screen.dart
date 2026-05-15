@@ -74,8 +74,10 @@ class _DemandaDetalhesScreenState extends State<DemandaDetalhesScreen> {
   }
 
   /// Cria uma nova demanda pré-preenchida a partir de uma cancelada.
-  /// A demanda original NÃO é alterada — preserva histórico e auditoria.
+  /// A demanda original NÃO é alterada no conteúdo — preserva histórico.
   /// Anexos não são copiados; o demandante pode reanexar se quiser.
+  /// O repositório marca a original com `republicadaComoId` na mesma
+  /// transação para impedir republicação dupla.
   void _republicar(Demanda demanda) {
     Navigator.of(context).push(
       MaterialPageRoute(
@@ -206,14 +208,28 @@ class _DemandaDetalhesScreenState extends State<DemandaDetalhesScreen> {
                   ),
                   const SizedBox(height: 16),
                 ],
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton.icon(
-                    onPressed: () => _republicar(demanda),
-                    icon: const Icon(Icons.replay),
-                    label: const Text('Republicar como nova demanda'),
+                // Botão de republicar OU aviso de já-republicada — mutuamente
+                // exclusivos. O campo `republicadaComoId` é setado de forma
+                // atômica junto com a criação da nova demanda (ver
+                // DemandaRepository.criar), então este check é fonte
+                // confiável de verdade.
+                if (demanda.republicadaComoId == null)
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: () => _republicar(demanda),
+                      icon: const Icon(Icons.replay),
+                      label: const Text('Republicar como nova demanda'),
+                    ),
+                  )
+                else
+                  _BlocoInfo(
+                    cor: AppColors.textSecondary,
+                    titulo: 'Já republicada',
+                    conteudo:
+                        'Você já republicou esta demanda. A nova versão está '
+                        'em "Minhas Demandas".',
                   ),
-                ),
                 const SizedBox(height: 24),
               ],
 

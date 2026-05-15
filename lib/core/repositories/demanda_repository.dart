@@ -23,18 +23,51 @@ class DemandaRepository {
 
   /// Cria nova demanda. Retorna ID gerado pelo Firestore.
   /// Status inicial: cadastrada (UC15 R03).
-  Future<String> criar(Demanda demanda) async {
+  ///
+  /// Se [originalCanceladaId] for fornecido, a operação é uma REPUBLICAÇÃO:
+  /// cria a nova demanda E marca a original com `republicadaComoId` na
+  /// mesma transação atômica (WriteBatch). Se uma operação falhar, nenhuma
+  /// é persistida — impede estados inconsistentes onde a nova demanda
+  /// existe mas a original ainda mostra o botão de republicar.
+  Future<String> criar(
+    Demanda demanda, {
+    String? originalCanceladaId,
+  }) async {
     try {
-      final docRef = await _demandas.add(demanda.toMap());
+      if (originalCanceladaId == null) {
+        // ----- fluxo simples: criação normal -----
+        final docRef = await _demandas.add(demanda.toMap());
 
-      // UC15 R05: registro em log de auditoria
+        // UC15 R05: registro em log de auditoria
+        await _registrarAuditoria(
+          demandaId: docRef.id,
+          acao: 'criar',
+          autorUid: demanda.demandanteUid,
+        );
+
+        return docRef.id;
+      }
+
+      // ----- fluxo de republicação: batch atômica -----
+      // Gera referência (e ID) antes de escrever para podermos usá-lo
+      // no update da demanda original na mesma batch.
+      final novaRef = _demandas.doc();
+      final originalRef = _demandas.doc(originalCanceladaId);
+
+      final batch = _firestore.batch();
+      batch.set(novaRef, demanda.toMap());
+      batch.update(originalRef, {'republicadaComoId': novaRef.id});
+
+      await batch.commit();
+
       await _registrarAuditoria(
-        demandaId: docRef.id,
-        acao: 'criar',
+        demandaId: novaRef.id,
+        acao: 'republicar',
         autorUid: demanda.demandanteUid,
+        metadados: {'originalCanceladaId': originalCanceladaId},
       );
 
-      return docRef.id;
+      return novaRef.id;
     } catch (e) {
       throw mapFirestoreError(e, recurso: 'Demanda');
     }

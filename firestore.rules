@@ -69,13 +69,30 @@ service cloud.firestore {
         request.resource.data.demandanteUid == request.auth.uid &&
         request.resource.data.status == 'cadastrada';
 
-      // Atualização permitida ao demandante autor APENAS se demanda
-      // estiver no status cadastrada (UC16/UC17 R02).
-      // OU professor/admin para mudanças de status (sprint 3+).
+      // Atualização permitida em três casos:
+      //
+      // 1. Demandante autor edita conteúdo enquanto demanda está
+      //    'cadastrada' (UC16/UC17 R02).
+      //
+      // 2. Demandante autor marca uma demanda CANCELADA com o ID da nova
+      //    republicação. Apenas o campo `republicadaComoId` pode ser
+      //    modificado, e somente se ainda não estiver setado. Garante
+      //    "republicar apenas uma vez" no nível de segurança, não só na UI.
+      //
+      // 3. Professor ou admin (mudanças de status, sprint 3+).
       allow update: if isSignedIn() && (
         (
           isOwner(resource.data.demandanteUid) &&
           resource.data.status == 'cadastrada'
+        ) ||
+        (
+          isOwner(resource.data.demandanteUid) &&
+          resource.data.status == 'cancelada' &&
+          (!('republicadaComoId' in resource.data) ||
+            resource.data.republicadaComoId == null) &&
+          request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['republicadaComoId']) &&
+          request.resource.data.republicadaComoId is string
         ) ||
         isProfessorEmail() ||
         isAdminEmail()
