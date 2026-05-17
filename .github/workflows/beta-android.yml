@@ -32,8 +32,15 @@ jobs:
           cache: true
 
       - name: Restaura keystore release
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
         run: |
-          echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > "$RUNNER_TEMP/nexus-release.jks"
+          printf '%s' "$KEYSTORE_B64" | tr -d ' \t\n\r' | base64 -d > "$RUNNER_TEMP/nexus-release.jks"
+          if [ ! -s "$RUNNER_TEMP/nexus-release.jks" ]; then
+            echo "::error::Keystore vazio após decode. Secret ANDROID_KEYSTORE_BASE64 está truncado ou inválido."
+            exit 1
+          fi
+          echo "Keystore decoded OK: $(stat -c%s "$RUNNER_TEMP/nexus-release.jks") bytes"
           echo "KEYSTORE_PATH=$RUNNER_TEMP/nexus-release.jks" >> "$GITHUB_ENV"
           echo "KEYSTORE_PASSWORD=${{ secrets.ANDROID_KEYSTORE_PASSWORD }}" >> "$GITHUB_ENV"
           echo "KEY_ALIAS=${{ secrets.ANDROID_KEY_ALIAS }}" >> "$GITHUB_ENV"
