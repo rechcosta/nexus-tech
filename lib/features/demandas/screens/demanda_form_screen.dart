@@ -3,7 +3,6 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../../../app/theme.dart';
-import '../../../core/models/anexo.dart';
 import '../../../core/models/demanda.dart';
 import '../../../core/models/demandante.dart';
 import '../../../core/providers/auth_provider.dart';
@@ -364,7 +363,7 @@ class _DemandaFormScreenState extends State<DemandaFormScreen> {
       children: [
         const FormLabel('Público-alvo *'),
         DropdownButtonFormField<String>(
-          value: _publicoSelecionado,
+          initialValue: _publicoSelecionado,
           isExpanded: true,
           decoration: const InputDecoration(
             hintText: 'Selecione o público-alvo',

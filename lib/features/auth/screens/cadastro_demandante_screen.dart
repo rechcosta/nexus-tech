@@ -89,7 +89,6 @@ class _CadastroDemandanteScreenState extends State<CadastroDemandanteScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const AuthHeader(titulo: 'Cadastro de Demandante'),
-
                 const FormLabel('Nome *'),
                 TextFormField(
                   controller: _nome,
@@ -100,7 +99,6 @@ class _CadastroDemandanteScreenState extends State<CadastroDemandanteScreen> {
                   validator: Validators.nome,
                 ),
                 const SizedBox(height: 20),
-
                 const FormLabel('Telefone *'),
                 TextFormField(
                   controller: _telefone,
@@ -111,20 +109,18 @@ class _CadastroDemandanteScreenState extends State<CadastroDemandanteScreen> {
                     TelefoneInputFormatter(),
                   ],
                   decoration: const InputDecoration(
-                    prefixIcon:
-                        Icon(Icons.phone, color: AppColors.primary),
+                    prefixIcon: Icon(Icons.phone, color: AppColors.primary),
                     hintText: '(xx) xxxxx-xxxx',
                   ),
                   validator: Validators.telefone,
                 ),
                 const SizedBox(height: 20),
-
                 const FormLabel('Tipo de Demandante *'),
                 DropdownButtonFormField<TipoDemandante>(
-                  value: _tipo,
+                  initialValue: _tipo,
                   decoration: const InputDecoration(
-                    prefixIcon: Icon(Icons.business_center,
-                        color: AppColors.primary),
+                    prefixIcon:
+                        Icon(Icons.business_center, color: AppColors.primary),
                     hintText: 'Selecione',
                   ),
                   items: TipoDemandante.values
@@ -135,7 +131,6 @@ class _CadastroDemandanteScreenState extends State<CadastroDemandanteScreen> {
                   validator: (v) => v == null ? 'Selecione um tipo' : null,
                 ),
                 const SizedBox(height: 20),
-
                 const FormLabel('CPF ou CNPJ *'),
                 TextFormField(
                   controller: _cpfCnpj,
@@ -151,7 +146,6 @@ class _CadastroDemandanteScreenState extends State<CadastroDemandanteScreen> {
                   validator: Validators.cpfCnpj,
                 ),
                 const SizedBox(height: 20),
-
                 const FormLabel('Endereço *'),
                 TextFormField(
                   controller: _endereco,
@@ -164,7 +158,6 @@ class _CadastroDemandanteScreenState extends State<CadastroDemandanteScreen> {
                   validator: Validators.endereco,
                 ),
                 const SizedBox(height: 40),
-
                 ElevatedButton(
                   onPressed: cadastro.salvando ? null : _submeter,
                   child: cadastro.salvando

@@ -3,7 +3,6 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../../../app/theme.dart';
-import '../../../core/models/area.dart';
 import '../../../core/providers/auth_provider.dart';
 import '../../../core/repositories/area_repository.dart';
 import '../../../core/utils/validators.dart';
@@ -160,7 +159,6 @@ class _CadastroProfessorScreenState extends State<CadastroProfessorScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const AuthHeader(titulo: 'Cadastro de Professor'),
-
                 const FormLabel('Nome *'),
                 TextFormField(
                   controller: _nome,
@@ -171,7 +169,6 @@ class _CadastroProfessorScreenState extends State<CadastroProfessorScreen> {
                   validator: Validators.nome,
                 ),
                 const SizedBox(height: 20),
-
                 const FormLabel('SIAPE *'),
                 TextFormField(
                   controller: _siape,
@@ -184,7 +181,6 @@ class _CadastroProfessorScreenState extends State<CadastroProfessorScreen> {
                   validator: Validators.siape,
                 ),
                 const SizedBox(height: 20),
-
                 const FormLabel('Áreas Técnicas *'),
                 _ChipsSelector(
                   opcoes: cadastro.areasTecnicas
@@ -209,7 +205,6 @@ class _CadastroProfessorScreenState extends State<CadastroProfessorScreen> {
                     ),
                   ),
                 const SizedBox(height: 20),
-
                 const FormLabel('Áreas de Interesse *'),
                 _ChipsSelector(
                   opcoes: cadastro.areasInteresse
@@ -234,7 +229,6 @@ class _CadastroProfessorScreenState extends State<CadastroProfessorScreen> {
                     ),
                   ),
                 const SizedBox(height: 40),
-
                 ElevatedButton(
                   onPressed: cadastro.salvando ? null : _submeter,
                   child: cadastro.salvando
