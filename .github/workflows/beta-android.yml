@@ -70,5 +70,5 @@ jobs:
           firebase appdistribution:distribute \
             build/app/outputs/flutter-apk/app-release.apk \
             --app "${{ secrets.FIREBASE_APP_ID_ANDROID }}" \
-            --groups "beta-testers" \
+            --groups "QA-team" \
             --release-notes "${{ github.event.inputs.release_notes }}"
