@@ -239,10 +239,10 @@ lib/
 > Deixei documentado para manter a transparência no projeto.
 
 <table>
-<tr><td>🧪</td><td><b>Sem testes automatizados</b> — decisão temporária. Validadores e fluxo de republicação entram antes do Sprint 3.</td></tr>
+<tr><td>🧪</td><td><b>Cobertura de testes parcial</b> — validadores (CPF/CNPJ/DDD/nome/SIAPE/telefone), transições de <code>StatusDemanda</code>, range de <code>FiltroPeriodo</code> e normalização de <code>Area</code> cobertos. Faltam: repositórios (Firestore/Storage), providers, fluxos de UI e teste de integração da republicação atômica (WriteBatch).</td></tr>
 <tr><td>🛡️</td><td><b>Antivírus de anexos não é real</b> — só extensão + MIME + tamanho são validados. Verificação real exige Cloud Function pós-upload.</td></tr>
 <tr><td>🔍</td><td><b>Busca por título é client-side</b> — funciona para o demandante (poucas demandas). Vai precisar evoluir para a prateleira do professor.</td></tr>
-<tr><td>🤖</td><td><b>Sem CI/CD</b> — builds e deploys são manuais.</td></tr>
+<tr><td>🤖</td><td><b>CI/CD parcial</b> — workflow GitHub Actions (<code>workflow_dispatch</code>) roda <code>flutter analyze</code> + <code>flutter test</code> e distribui APK Android via Firebase App Distribution. iOS, web, deploy de Rules e build em PR ainda são manuais.</td></tr>
 <tr><td>👤</td><td><b>Lista de admins é enumerada em código</b> — adicionar/remover exige redeploy. Migração futura: custom claims.</td></tr>
 </table>
 

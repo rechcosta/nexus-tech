@@ -511,6 +511,7 @@ Canceladas não são deletadas. Documento permanece com `status: cancelada` + `m
 - **Prateleira do professor.** Paginação real (`limit + startAfter`), filtros server-side por área, e provavelmente busca textual via Algolia/Typesense ou indexação manual.
 - **Transições de status.** Novas Rules e provavelmente Cloud Functions para validar prazos (UC09 fala em 24h para análise).
 - **Testes.** Validadores (CPF/CNPJ/DDD) e republicação atômica no mínimo.
+- **Testes (continuação).** Cobertos: validadores, transições de `StatusDemanda`, `FiltroPeriodo.range`, normalização de `Area`. Pendentes: repositórios (com Firebase Emulator), teste de integração da republicação atômica via `WriteBatch`, e providers críticos (`DemandasProvider`, `DemandaFormProvider`).
 
 ### Média urgência (Sprint 4)
 
@@ -523,6 +524,7 @@ Canceladas não são deletadas. Documento permanece com `status: cancelada` + `m
 - **Antivírus real** via Cloud Function pós-upload integrando VirusTotal/ClamAV. UC20 R03 pede; cumprimos parcialmente.
 - **Custom claims para admin** em vez de lista enumerada. Cloud Function lê lista do Firestore, atribui claim — adicionar admin sem redeploy.
 - **CI/CD com GitHub Actions.** Build automático, deploy de Rules, testes em PR.
+- **CI/CD (continuação).** Existe: workflow `workflow_dispatch` que valida (`analyze` + `test`) e distribui APK Android beta. Falta: trigger em PR (não só manual), deploy automático de Firestore/Storage Rules, build iOS, e gate de merge com cobertura mínima.
 - **Observabilidade.** Crashlytics + Performance Monitoring (só ligar no Firebase) + retenção de audit logs.
 
 ### Reavaliações periódicas
