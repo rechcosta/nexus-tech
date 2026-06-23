@@ -260,11 +260,16 @@ class _EntregaDemandaScreenState extends State<EntregaDemandaScreen> {
                 foregroundColor: AppColors.textSecondary,
                 side: BorderSide(color: Colors.grey.shade300),
                 minimumSize: const Size.fromHeight(52),
+                padding: const EdgeInsets.symmetric(horizontal: 8),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),
               ),
-              child: const Text('Cancelar'),
+              // FittedBox evita que "Cancelar" quebre linha em telas estreitas.
+              child: const FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text('Cancelar', maxLines: 1, softWrap: false),
+              ),
             ),
           ),
           const SizedBox(width: 12),
@@ -273,7 +278,9 @@ class _EntregaDemandaScreenState extends State<EntregaDemandaScreen> {
             child: ElevatedButton(
               onPressed: processando ? null : _confirmar,
               style: ElevatedButton.styleFrom(
-                  minimumSize: const Size.fromHeight(52)),
+                minimumSize: const Size.fromHeight(52),
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+              ),
               child: processando
                   ? const SizedBox(
                       height: 20,
@@ -281,7 +288,11 @@ class _EntregaDemandaScreenState extends State<EntregaDemandaScreen> {
                       child: CircularProgressIndicator(
                           color: Colors.white, strokeWidth: 2),
                     )
-                  : const Text('Confirmar entrega'),
+                  : const FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text('Confirmar entrega',
+                          maxLines: 1, softWrap: false),
+                    ),
             ),
           ),
         ],

@@ -306,10 +306,9 @@ class _DemandaDetalhesProfessorScreenState
             children: [
               for (var i = 0; i < acoes.length; i++) ...[
                 if (i > 0) const SizedBox(width: 12),
-                Expanded(
-                  flex: acoes[i].destaque ? 2 : 1,
-                  child: acoes[i].build(processando),
-                ),
+                // Largura igual para todos os botões — evita que o "Rejeitar"
+                // fique estreito demais e trunque ("R...") em telas pequenas.
+                Expanded(child: acoes[i].build(processando)),
               ],
             ],
           );
@@ -324,7 +323,6 @@ class _DemandaDetalhesProfessorScreenState
         _Acao(
           rotulo: 'Marcar para análise',
           icone: Icons.search,
-          destaque: true,
           onTap: () => _marcarAnalise(d),
         ),
       ];
@@ -340,7 +338,6 @@ class _DemandaDetalhesProfessorScreenState
         _Acao(
           rotulo: 'Assumir',
           icone: Icons.check,
-          destaque: true,
           onTap: () => _assumir(d),
         ),
       ];
@@ -350,7 +347,6 @@ class _DemandaDetalhesProfessorScreenState
         _Acao(
           rotulo: 'Marcar como concluída',
           icone: Icons.flag_outlined,
-          destaque: true,
           onTap: () => _concluir(d),
         ),
       ];
@@ -368,18 +364,17 @@ class _DemandaDetalhesProfessorScreenState
 enum _TipoBotao { primario, perigoOutline }
 
 /// Descreve um botão de ação da barra inferior.
+/// Descreve um botão de ação da barra inferior.
 class _Acao {
   final String rotulo;
   final IconData icone;
   final VoidCallback onTap;
-  final bool destaque;
   final _TipoBotao tipo;
 
   const _Acao({
     required this.rotulo,
     required this.icone,
     required this.onTap,
-    this.destaque = false,
     this.tipo = _TipoBotao.primario,
   });
 
@@ -394,14 +389,19 @@ class _Acao {
               color: perigo ? AppColors.error : Colors.white,
             ),
           )
-        : Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(icone, size: 18),
-              const SizedBox(width: 8),
-              Flexible(child: Text(rotulo, overflow: TextOverflow.ellipsis)),
-            ],
+        // FittedBox encolhe ícone + rótulo proporcionalmente quando o botão
+        // é estreito, em vez de truncar ("R...") ou quebrar linha. Garante
+        // legibilidade em qualquer largura de tela.
+        : FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(icone, size: 18),
+                const SizedBox(width: 8),
+                Text(rotulo, maxLines: 1, softWrap: false),
+              ],
+            ),
           );
 
     if (perigo) {
@@ -411,6 +411,7 @@ class _Acao {
           foregroundColor: AppColors.error,
           side: const BorderSide(color: AppColors.error),
           minimumSize: const Size.fromHeight(52),
+          padding: const EdgeInsets.symmetric(horizontal: 8),
           shape:
               RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         ),
@@ -420,7 +421,10 @@ class _Acao {
 
     return ElevatedButton(
       onPressed: processando ? null : onTap,
-      style: ElevatedButton.styleFrom(minimumSize: const Size.fromHeight(52)),
+      style: ElevatedButton.styleFrom(
+        minimumSize: const Size.fromHeight(52),
+        padding: const EdgeInsets.symmetric(horizontal: 8),
+      ),
       child: conteudo,
     );
   }
