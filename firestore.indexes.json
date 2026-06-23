@@ -25,6 +25,31 @@
         { "fieldPath": "status", "order": "ASCENDING" },
         { "fieldPath": "criadoEm", "order": "ASCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "demandas",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "criadoEm", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "demandas",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "professorUid", "order": "ASCENDING" },
+        { "fieldPath": "criadoEm", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "demandas",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "professorUid", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "criadoEm", "order": "DESCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []

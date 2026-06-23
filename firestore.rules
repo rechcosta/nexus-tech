@@ -16,14 +16,21 @@ service cloud.firestore {
     function isAdminEmail() {
       // ! IMPORTANTE: manter sincronizado com app_constants.dart > adminEmails
       return isSignedIn() && request.auth.token.email in [
-        'karen.borges@osorio.ifrs.edu.br',
+        // 'karen.borges@osorio.ifrs.edu.br',
         // 'rechcostagustavo@gmail.com'
       ];
     }
 
     function isProfessorEmail() {
-      return isSignedIn() &&
-        request.auth.token.email.matches('.*@osorio[.]ifrs[.]edu[.]br');
+      return isSignedIn() && (
+        request.auth.token.email.matches('.*@osorio[.]ifrs[.]edu[.]br')
+        // ===== INÍCIO — E-MAIL DE TESTE (PROFESSOR) — REMOVER ANTES DE PRODUÇÃO =====
+        // ! Manter sincronizado com app_constants.dart > professorTestEmails
+        || request.auth.token.email in [
+          'rechcostagustavo@gmail.com'
+        ]
+        // ===== FIM — E-MAIL DE TESTE (PROFESSOR) =====
+      );
     }
 
     function existingDemanda() {
@@ -69,7 +76,7 @@ service cloud.firestore {
         request.resource.data.demandanteUid == request.auth.uid &&
         request.resource.data.status == 'cadastrada';
 
-      // Atualização permitida em três casos:
+      // Atualização permitida nos seguintes casos:
       //
       // 1. Demandante autor edita conteúdo enquanto demanda está
       //    'cadastrada' (UC16/UC17 R02).
@@ -79,7 +86,17 @@ service cloud.firestore {
       //    modificado, e somente se ainda não estiver setado. Garante
       //    "republicar apenas uma vez" no nível de segurança, não só na UI.
       //
-      // 3. Professor ou admin (mudanças de status, sprint 3+).
+      // 3. Professor MARCA PARA ANÁLISE (UC09): 'cadastrada' -> 'emAnalise',
+      //    associando a si mesmo. Restringe os campos tocados.
+      //
+      // 4. Professor RESPONSÁVEL conduz as demais transições (UC10 rejeitar,
+      //    UC11 assumir, UC12 concluir). Só pode mexer nos campos do ciclo de
+      //    vida — nunca no conteúdo do demandante. A validação fina da máquina
+      //    de estados (qual status pode ir para qual) é feita pelas transações
+      //    do cliente e, no futuro, por Cloud Functions; aqui garantimos posse
+      //    e superfície mínima de escrita.
+      //
+      // 5. Admin (operações administrativas — sprints futuras).
       allow update: if isSignedIn() && (
         (
           isOwner(resource.data.demandanteUid) &&
@@ -94,7 +111,26 @@ service cloud.firestore {
             .hasOnly(['republicadaComoId']) &&
           request.resource.data.republicadaComoId is string
         ) ||
-        isProfessorEmail() ||
+        (
+          isProfessorEmail() &&
+          resource.data.status == 'cadastrada' &&
+          request.resource.data.status == 'emAnalise' &&
+          request.resource.data.professorUid == request.auth.uid &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'status', 'professorUid', 'professorNome',
+            'analiseIniciadaEm', 'analiseExpiraEm', 'atualizadoEm'
+          ])
+        ) ||
+        (
+          isProfessorEmail() &&
+          resource.data.professorUid == request.auth.uid &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'status', 'professorUid', 'professorNome',
+            'analiseIniciadaEm', 'analiseExpiraEm',
+            'producaoIniciadaEm', 'concluidaEm', 'descricaoSolucao',
+            'atualizadoEm'
+          ])
+        ) ||
         isAdminEmail()
       );
 
@@ -109,18 +145,34 @@ service cloud.firestore {
           isAdminEmail()
         );
 
-        // Apenas o demandante dono OU o professor responsável pode anexar
-        // (UC20 R04). Sprint 2: apenas demandante; sprint 3 inclui professor.
-        allow create: if isSignedIn() && isOwner(
-          get(/databases/$(database)/documents/demandas/$(id)).data.demandanteUid
+        // Apenas o demandante dono OU o professor responsável pela demanda
+        // pode anexar (UC20 R04). Sprint 3 inclui o professor responsável,
+        // necessário para os anexos da entrega (UC12).
+        allow create: if isSignedIn() && (
+          isOwner(get(/databases/$(database)/documents/demandas/$(id)).data.demandanteUid) ||
+          (isProfessorEmail() &&
+            get(/databases/$(database)/documents/demandas/$(id)).data.professorUid == request.auth.uid)
         );
 
-        allow delete: if isSignedIn() && isOwner(
-          get(/databases/$(database)/documents/demandas/$(id)).data.demandanteUid
+        allow delete: if isSignedIn() && (
+          isOwner(get(/databases/$(database)/documents/demandas/$(id)).data.demandanteUid) ||
+          (isProfessorEmail() &&
+            get(/databases/$(database)/documents/demandas/$(id)).data.professorUid == request.auth.uid)
         );
 
         allow update: if false; // anexos são imutáveis
       }
+    }
+
+    // ============== NOTIFICAÇÕES ==============
+    // Fila de notificações (UC11/UC12 R04). O app apenas enfileira; o despacho
+    // via FCM e a marcação de `enviada`/`lida` ficam a cargo de uma Cloud
+    // Function (Admin SDK ignora estas Rules). Ver docs/CLOUD_FUNCTIONS.md.
+    match /notificacoes/{id} {
+      allow read: if isSignedIn() && isOwner(resource.data.destinatarioUid);
+      allow create: if isSignedIn() &&
+        request.resource.data.autorUid == request.auth.uid;
+      allow update, delete: if false;
     }
 
     // ============== AUDIT LOGS ==============

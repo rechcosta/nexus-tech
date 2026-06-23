@@ -36,8 +36,15 @@ class ValidationException extends AppException {
   const ValidationException(super.message);
 }
 
+/// Conflito de concorrência: o recurso mudou de estado entre a leitura e a
+/// escrita. Acontece, por exemplo, quando dois professores tentam marcar a
+/// mesma demanda para análise — só o primeiro vence, o segundo recebe isto.
+/// Usada pelas transações de mudança de status (UC09–UC12).
+class ConflictException extends AppException {
+  const ConflictException(super.message);
+}
+
 /// Falha de autenticação (login Google)
 class AuthException extends AppException {
-  const AuthException()
-      : super('Falha na autenticação. Tente novamente.');
+  const AuthException() : super('Falha na autenticação. Tente novamente.');
 }

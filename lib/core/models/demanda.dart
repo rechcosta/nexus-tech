@@ -5,24 +5,23 @@ import 'enums.dart';
 
 /// Status possíveis de uma demanda no fluxo completo do sistema.
 ///
-/// IMPORTANTE: nem todas as transições são implementadas pelo demandante.
-/// Esta enum existe inteira para que o vocabulário do domínio seja consistente,
-/// mas as transições do professor (em análise / em produção / concluída)
-/// serão implementadas em sprints futuras.
+/// O ciclo de vida completo (demandante + professor) é representado aqui.
+/// As transições válidas são declaradas em [_transicoes] — fonte única de
+/// verdade da máquina de estados. UI e repositório consultam os getters
+/// derivados; nenhum `if (status == X || status == Y)` espalhado.
 enum StatusDemanda {
-  /// Estado inicial. Visível na prateleira pública.
+  /// Estado inicial. Visível na prateleira pública (UC08).
   cadastrada,
 
-  /// Professor marcou pra análise. Tem 24h pra decidir.
-  /// TODO(sprint-3): transição via UC09
+  /// Professor marcou pra análise (UC09). Tem 24h pra decidir antes do
+  /// rollback automático. Sai da prateleira pública e vai para a interface
+  /// "Minhas Demandas" do professor.
   emAnalise,
 
-  /// Professor assumiu. Trabalho em andamento.
-  /// TODO(sprint-3): transição via UC11
+  /// Professor assumiu (UC11). Trabalho em andamento.
   emProducao,
 
-  /// Trabalho entregue.
-  /// TODO(sprint-3): transição via UC12
+  /// Trabalho entregue (UC12).
   concluida,
 
   /// Demandante cancelou (UC16). Soft-delete: preserva histórico.
@@ -52,10 +51,55 @@ enum StatusDemanda {
         StatusDemanda.cancelada => AppColors.error,
       };
 
+  // ============== MÁQUINA DE ESTADOS ==============
+
+  /// Transições válidas a partir de cada estado. Estados terminais
+  /// (`concluida`, `cancelada`) não têm saída — a republicação de uma
+  /// cancelada cria uma demanda NOVA, não é uma transição da original.
+  static const Map<StatusDemanda, Set<StatusDemanda>> _transicoes = {
+    StatusDemanda.cadastrada: {
+      StatusDemanda.emAnalise,
+      StatusDemanda.cancelada
+    },
+    StatusDemanda.emAnalise: {
+      StatusDemanda.emProducao,
+      StatusDemanda.cadastrada
+    },
+    StatusDemanda.emProducao: {StatusDemanda.concluida},
+    StatusDemanda.concluida: <StatusDemanda>{},
+    StatusDemanda.cancelada: <StatusDemanda>{},
+  };
+
+  /// Valida no domínio se a transição `this -> novo` é permitida.
+  /// É o backstop usado pelas transações do repositório antes de qualquer
+  /// escrita; as Firestore Rules são a camada de segurança equivalente.
+  bool podeTransicionarPara(StatusDemanda novo) =>
+      _transicoes[this]?.contains(novo) ?? false;
+
+  // --- Transições do demandante ---
+
   /// Demandante só pode editar/cancelar enquanto demanda não foi assumida.
   /// Regra alinhada com UC16 R02 e UC17 R02.
   bool get podeEditarDemandante => this == StatusDemanda.cadastrada;
   bool get podeCancelarDemandante => this == StatusDemanda.cadastrada;
+
+  // --- Transições do professor (Sprint 3) ---
+
+  /// UC09: apenas demandas aguardando podem ser marcadas para análise.
+  bool get podeMarcarAnalise => this == StatusDemanda.cadastrada;
+
+  /// UC10: apenas demandas em análise podem ser rejeitadas/devolvidas.
+  bool get podeRejeitar => this == StatusDemanda.emAnalise;
+
+  /// UC11: apenas demandas em análise podem ser assumidas.
+  bool get podeAssumir => this == StatusDemanda.emAnalise;
+
+  /// UC12: apenas demandas em produção podem ser concluídas.
+  bool get podeConcluir => this == StatusDemanda.emProducao;
+
+  /// UC08 R01: a prateleira pública exibe apenas estes status.
+  bool get visivelNaPrateleira =>
+      this == StatusDemanda.cadastrada || this == StatusDemanda.emProducao;
 }
 
 /// Filtro aplicado à lista de demandas.
@@ -111,9 +155,28 @@ class Demanda {
   final StatusDemanda status;
   final String? motivoCancelamento;
 
-  // --- atribuição (preenchido pelo professor em sprina futura) ---
+  // --- atribuição (preenchido pelo professor no ciclo de vida — Sprint 3) ---
   final String? professorUid;
   final String? professorNome;
+
+  /// Momento em que o professor marcou a demanda para análise (UC09).
+  final DateTime? analiseIniciadaEm;
+
+  /// Prazo limite da análise (UC09 R03: 24h). Após esse instante a demanda
+  /// deve voltar para `cadastrada` automaticamente. O rollback definitivo
+  /// será uma Cloud Function (ver docs/CLOUD_FUNCTIONS.md); enquanto não há
+  /// acesso a Functions, o cliente faz reconciliação best-effort.
+  final DateTime? analiseExpiraEm;
+
+  /// Momento em que o professor assumiu a demanda (UC11). Usado no cálculo
+  /// do tempo médio de entrega (indicadores — UC06).
+  final DateTime? producaoIniciadaEm;
+
+  /// Momento da entrega/conclusão (UC12). Também alimenta indicadores.
+  final DateTime? concluidaEm;
+
+  /// Descrição da solução entregue pelo professor na conclusão (UC12).
+  final String? descricaoSolucao;
 
   /// Se essa demanda foi cancelada e o demandante usou o botão
   /// "Republicar como nova demanda", este campo guarda o ID da nova.
@@ -144,10 +207,22 @@ class Demanda {
     this.motivoCancelamento,
     this.professorUid,
     this.professorNome,
+    this.analiseIniciadaEm,
+    this.analiseExpiraEm,
+    this.producaoIniciadaEm,
+    this.concluidaEm,
+    this.descricaoSolucao,
     this.republicadaComoId,
     this.atualizadoEm,
     this.canceladoEm,
   });
+
+  /// `true` quando a janela de análise (UC09 R03) já expirou e a demanda
+  /// ainda está `emAnalise` — candidata a rollback automático.
+  bool get analiseExpirou =>
+      status == StatusDemanda.emAnalise &&
+      analiseExpiraEm != null &&
+      analiseExpiraEm!.isBefore(DateTime.now());
 
   Map<String, dynamic> toMap() => {
         'demandanteUid': demandanteUid,
@@ -162,6 +237,11 @@ class Demanda {
         'motivoCancelamento': motivoCancelamento,
         'professorUid': professorUid,
         'professorNome': professorNome,
+        'analiseIniciadaEm': analiseIniciadaEm?.toIso8601String(),
+        'analiseExpiraEm': analiseExpiraEm?.toIso8601String(),
+        'producaoIniciadaEm': producaoIniciadaEm?.toIso8601String(),
+        'concluidaEm': concluidaEm?.toIso8601String(),
+        'descricaoSolucao': descricaoSolucao,
         'republicadaComoId': republicadaComoId,
         'criadoEm': criadoEm.toIso8601String(),
         'atualizadoEm': atualizadoEm?.toIso8601String(),
@@ -187,16 +267,24 @@ class Demanda {
         motivoCancelamento: map['motivoCancelamento'] as String?,
         professorUid: map['professorUid'] as String?,
         professorNome: map['professorNome'] as String?,
+        analiseIniciadaEm: _parseData(map['analiseIniciadaEm']),
+        analiseExpiraEm: _parseData(map['analiseExpiraEm']),
+        producaoIniciadaEm: _parseData(map['producaoIniciadaEm']),
+        concluidaEm: _parseData(map['concluidaEm']),
+        descricaoSolucao: map['descricaoSolucao'] as String?,
         // Demandas legadas (criadas antes deste campo existir) retornam null.
         republicadaComoId: map['republicadaComoId'] as String?,
         criadoEm: DateTime.parse(map['criadoEm'] as String),
-        atualizadoEm: map['atualizadoEm'] != null
-            ? DateTime.parse(map['atualizadoEm'] as String)
-            : null,
-        canceladoEm: map['canceladoEm'] != null
-            ? DateTime.parse(map['canceladoEm'] as String)
-            : null,
+        atualizadoEm: _parseData(map['atualizadoEm']),
+        canceladoEm: _parseData(map['canceladoEm']),
       );
+
+  /// Parse defensivo de datas ISO8601 opcionais. Demandas legadas podem não
+  /// ter o campo, e um valor corrompido não deve derrubar a desserialização.
+  static DateTime? _parseData(Object? valor) {
+    if (valor is! String) return null;
+    return DateTime.tryParse(valor);
+  }
 
   Demanda copyWith({
     String? titulo,
@@ -205,6 +293,13 @@ class Demanda {
     String? impacto,
     StatusDemanda? status,
     String? motivoCancelamento,
+    String? professorUid,
+    String? professorNome,
+    DateTime? analiseIniciadaEm,
+    DateTime? analiseExpiraEm,
+    DateTime? producaoIniciadaEm,
+    DateTime? concluidaEm,
+    String? descricaoSolucao,
     String? republicadaComoId,
     DateTime? atualizadoEm,
     DateTime? canceladoEm,
@@ -220,8 +315,13 @@ class Demanda {
       impacto: impacto ?? this.impacto,
       status: status ?? this.status,
       motivoCancelamento: motivoCancelamento ?? this.motivoCancelamento,
-      professorUid: professorUid,
-      professorNome: professorNome,
+      professorUid: professorUid ?? this.professorUid,
+      professorNome: professorNome ?? this.professorNome,
+      analiseIniciadaEm: analiseIniciadaEm ?? this.analiseIniciadaEm,
+      analiseExpiraEm: analiseExpiraEm ?? this.analiseExpiraEm,
+      producaoIniciadaEm: producaoIniciadaEm ?? this.producaoIniciadaEm,
+      concluidaEm: concluidaEm ?? this.concluidaEm,
+      descricaoSolucao: descricaoSolucao ?? this.descricaoSolucao,
       republicadaComoId: republicadaComoId ?? this.republicadaComoId,
       criadoEm: criadoEm,
       atualizadoEm: atualizadoEm ?? this.atualizadoEm,

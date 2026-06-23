@@ -39,9 +39,16 @@ class AuthProvider extends ChangeNotifier {
   String? get erro => _erro;
 
   bool get isProfessorEmail {
-    final email = _firebaseUser?.email;
+    final email = _firebaseUser?.email?.toLowerCase();
     if (email == null) return false;
-    return email.endsWith('@${AppConstants.professorEmailDomain}');
+    if (email.endsWith('@${AppConstants.professorEmailDomain}')) return true;
+    // ===== INÍCIO — E-MAIL DE TESTE (PROFESSOR) — REMOVER ANTES DE PRODUÇÃO =====
+    // Allowlist de teste: trata e-mails pessoais como professor.
+    // Lista definida em AppConstants.professorTestEmails.
+    return AppConstants.professorTestEmails
+        .map((e) => e.toLowerCase())
+        .contains(email);
+    // ===== FIM — E-MAIL DE TESTE (PROFESSOR) =====
   }
 
   bool get isAdminEmail {
