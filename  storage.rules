@@ -11,16 +11,22 @@ service firebase.storage {
         request.auth.token.email.matches('.*@osorio[.]ifrs[.]edu[.]br');
     }
 
-    // ============== ANEXOS DE DEMANDAS ==============
-    match /demandas/{demandaId}/anexos/{arquivo} {
-      // Demandante e professores podem ler.
-      // Refinamento futuro: validar que demandaId pertence ao demandante via
-      // Firestore lookup (caro). Por ora, autenticação básica.
+    // ============== FOTO DE PERFIL ==============
+    match /users/{uid}/{arquivo} {
       allow read: if isSignedIn();
 
-      // Upload: apenas autenticados, com limites de tamanho e formato.
-      // UC20 R01: PDF, DOCX, JPG, PNG.
-      // UC20 R02: até 10MB.
+      allow write: if isSignedIn() &&
+        request.auth.uid == uid &&
+        request.resource.size < 5 * 1024 * 1024 &&
+        request.resource.contentType.matches('image/.*');
+
+      allow delete: if isSignedIn() && request.auth.uid == uid;
+    }
+
+    // ============== ANEXOS DE DEMANDAS ==============
+    match /demandas/{demandaId}/anexos/{arquivo} {
+      allow read: if isSignedIn();
+
       allow create: if isSignedIn() &&
         request.resource.size < 10 * 1024 * 1024 &&
         request.resource.contentType in [
@@ -30,10 +36,8 @@ service firebase.storage {
           'image/png'
         ];
 
-      // Anexos são imutáveis após upload.
       allow update: if false;
 
-      // Apenas o uploader (via custom metadata) pode deletar.
       allow delete: if isSignedIn() &&
         request.auth.uid == resource.metadata.enviadoPorUid;
     }

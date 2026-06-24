@@ -56,6 +56,57 @@ class UsuarioRepository {
     }
   }
 
+  // ! ===========================
+  // ! UC23 - EDITAR PERFIL
+  // ! ===========================
+
+  Future<void> atualizarDemandante({
+    required String uid,
+    required String nome,
+    required String telefone,
+    required TipoDemandante tipo,
+    required String endereco,
+  }) async {
+    try {
+      await _users.doc(uid).update({
+        'nome': nome.trim(),
+        'telefone': telefone.replaceAll(RegExp(r'\D'), ''),
+        'tipo': tipo.name,
+        'endereco': endereco.trim(),
+      });
+    } catch (e) {
+      throw mapFirestoreError(e, recurso: 'Perfil');
+    }
+  }
+
+  Future<void> atualizarProfessor({
+    required String uid,
+    required String nome,
+    required List<String> areasTecnicas,
+    required List<String> areasInteresse,
+  }) async {
+    try {
+      await _users.doc(uid).update({
+        'nome': nome.trim(),
+        'areasTecnicas': areasTecnicas,
+        'areasInteresse': areasInteresse,
+      });
+    } catch (e) {
+      throw mapFirestoreError(e, recurso: 'Perfil');
+    }
+  }
+
+  Future<void> atualizarFotoUrl({
+    required String uid,
+    required String fotoUrl,
+  }) async {
+    try {
+      await _users.doc(uid).update({'fotoUrl': fotoUrl});
+    } catch (e) {
+      throw mapFirestoreError(e, recurso: 'Foto de perfil');
+    }
+  }
+
   /// Cria perfil de administrador automaticamente no primeiro acesso.
   /// Retorna o objeto criado (evita refetch posterior).
   Future<Administrador> criarAdministradorAutomatico({

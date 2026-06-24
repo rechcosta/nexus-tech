@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/widgets/texto_botao.dart';
 import '../../../app/theme.dart';
 
 /// Dialog de cancelamento. Coleta o motivo e retorna ao chamador.
@@ -104,7 +105,7 @@ class _CancelarDemandaDialogState extends State<CancelarDemandaDialog> {
                         borderRadius: BorderRadius.circular(12),
                       ),
                     ),
-                    child: const Text('Voltar'),
+                    child: const TextoBotao('Voltar'),
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -119,11 +120,7 @@ class _CancelarDemandaDialogState extends State<CancelarDemandaDialog> {
                         borderRadius: BorderRadius.circular(12),
                       ),
                     ),
-                    child: const Text(
-                      'Cancelar\nDemanda',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(fontSize: 13),
-                    ),
+                    child: const TextoBotao('Cancelar Demanda'),
                   ),
                 ),
               ],

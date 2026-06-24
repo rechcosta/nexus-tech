@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../perfil/screens/perfil_screen.dart';
 import '../../../app/theme.dart';
 import '../../../core/providers/auth_provider.dart';
 import '../providers/professor_demandas_provider.dart';
@@ -40,6 +41,7 @@ class _ProfessorHomeScreenState extends State<ProfessorHomeScreen> {
           children: const [
             PrateleiraScreen(),
             MinhasDemandasProfessorScreen(),
+            PerfilScreen(comoAba: true), // UC23 — perfil do professor
           ],
         ),
       ),
@@ -58,6 +60,12 @@ class _ProfessorHomeScreenState extends State<ProfessorHomeScreen> {
             icon: Icon(Icons.folder_outlined),
             selectedIcon: Icon(Icons.folder, color: AppColors.primary),
             label: 'Minhas Demandas',
+          ),
+          // no NavigationBar > destinations, adicione a 3ª:
+          NavigationDestination(
+            icon: Icon(Icons.person_outline),
+            selectedIcon: Icon(Icons.person, color: AppColors.primary),
+            label: 'Perfil',
           ),
         ],
       ),

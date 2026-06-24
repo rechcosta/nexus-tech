@@ -16,6 +16,7 @@ class Professor extends Usuario {
     required this.areasTecnicas,
     required this.areasInteresse,
     this.ativo = true,
+    super.fotoUrl,
   }) : super(role: UserRole.professor);
 
   @override
@@ -29,6 +30,7 @@ class Professor extends Usuario {
         'areasTecnicas': areasTecnicas,
         'areasInteresse': areasInteresse,
         'ativo': ativo,
+        'fotoUrl': fotoUrl,
       };
 
   factory Professor.fromMap(Map<String, dynamic> map) => Professor(
@@ -40,5 +42,6 @@ class Professor extends Usuario {
         areasTecnicas: List<String>.from(map['areasTecnicas'] ?? const []),
         areasInteresse: List<String>.from(map['areasInteresse'] ?? const []),
         ativo: map['ativo'] as bool? ?? true,
+        fotoUrl: map['fotoUrl'] as String?,
       );
 }

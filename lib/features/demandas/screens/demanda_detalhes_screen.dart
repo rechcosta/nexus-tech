@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../../core/widgets/texto_botao.dart';
 import '../../../app/theme.dart';
 import '../../../core/models/anexo.dart';
 import '../../../core/models/demanda.dart';
@@ -216,10 +217,12 @@ class _DemandaDetalhesScreenState extends State<DemandaDetalhesScreen> {
                 if (demanda.republicadaComoId == null)
                   SizedBox(
                     width: double.infinity,
-                    child: ElevatedButton.icon(
+                    child: ElevatedButton(
                       onPressed: () => _republicar(demanda),
-                      icon: const Icon(Icons.replay),
-                      label: const Text('Republicar como nova demanda'),
+                      child: const TextoBotao(
+                        ('Republicar como nova demanda'),
+                        icone: Icons.replay,
+                      ),
                     ),
                   )
                 else

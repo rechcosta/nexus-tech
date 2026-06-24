@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/widgets/texto_botao.dart';
 import '../../../app/theme.dart';
 import '../../../core/models/demanda.dart';
 
@@ -170,11 +171,12 @@ class _FiltrosBottomSheetState extends State<FiltrosBottomSheet> {
                       foregroundColor: AppColors.textSecondary,
                       side: BorderSide(color: Colors.grey.shade300),
                       minimumSize: const Size.fromHeight(52),
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
                       ),
                     ),
-                    child: const Text('Limpar filtros'),
+                    child: const TextoBotao('Limpar filtros'),
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -185,7 +187,7 @@ class _FiltrosBottomSheetState extends State<FiltrosBottomSheet> {
                       widget.onAplicar(_status, _periodo);
                       Navigator.pop(context);
                     },
-                    child: Text(
+                    child: TextoBotao(
                       _totalFiltros == 0
                           ? 'Aplicar'
                           : 'Aplicar ($_totalFiltros)',

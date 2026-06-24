@@ -7,6 +7,7 @@ class Administrador extends Usuario {
     required super.email,
     required super.nome,
     required super.criadoEm,
+    super.fotoUrl,
   }) : super(role: UserRole.administrador);
 
   @override
@@ -16,6 +17,7 @@ class Administrador extends Usuario {
         'nome': nome,
         'role': role.name,
         'criadoEm': criadoEm.toIso8601String(),
+        'fotoUrl': fotoUrl,
       };
 
   factory Administrador.fromMap(Map<String, dynamic> map) => Administrador(
@@ -23,5 +25,6 @@ class Administrador extends Usuario {
         email: map['email'] as String,
         nome: map['nome'] as String,
         criadoEm: DateTime.parse(map['criadoEm'] as String),
+        fotoUrl: map['fotoUrl'] as String?,
       );
 }

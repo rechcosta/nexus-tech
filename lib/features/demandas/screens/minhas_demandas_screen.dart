@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../../../app/theme.dart';
 import '../../../core/providers/auth_provider.dart';
+import '../../perfil/screens/perfil_screen.dart';
 import '../providers/demanda_form_provider.dart';
 import '../providers/demandas_provider.dart';
 import '../widgets/demanda_card.dart';
@@ -19,6 +20,10 @@ class MinhasDemandasScreen extends StatefulWidget {
 
 class _MinhasDemandasScreenState extends State<MinhasDemandasScreen> {
   final _buscaController = TextEditingController();
+
+  /// 0 = lista de demandas · 1 = perfil. O menu inferior alterna entre eles
+  /// mantendo-se sempre visível (mesmo padrão da área do professor).
+  int _aba = 0;
 
   @override
   void initState() {
@@ -69,19 +74,28 @@ class _MinhasDemandasScreenState extends State<MinhasDemandasScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       body: SafeArea(
-        child: Column(
+        child: IndexedStack(
+          index: _aba,
           children: [
-            _buildHeader(),
-            _buildBuscaEFiltro(),
-            Expanded(child: _buildLista()),
+            Column(
+              children: [
+                _buildHeader(),
+                _buildBuscaEFiltro(),
+                Expanded(child: _buildLista()),
+              ],
+            ),
+            const PerfilScreen(comoAba: true),
           ],
         ),
       ),
-      floatingActionButton: FloatingActionButton(
-        backgroundColor: AppColors.primary,
-        onPressed: _abrirNovaDemanda,
-        child: const Icon(Icons.add, color: Colors.white, size: 32),
-      ),
+      // FAB de "nova demanda" só faz sentido na aba de demandas.
+      floatingActionButton: _aba == 0
+          ? FloatingActionButton(
+              backgroundColor: AppColors.primary,
+              onPressed: _abrirNovaDemanda,
+              child: const Icon(Icons.add, color: Colors.white, size: 32),
+            )
+          : null,
       bottomNavigationBar: _buildBottomNav(),
     );
   }
@@ -227,36 +241,50 @@ class _MinhasDemandasScreenState extends State<MinhasDemandasScreen> {
         color: AppColors.background,
         border: Border(top: BorderSide(color: Colors.grey.shade200)),
       ),
-      padding: const EdgeInsets.symmetric(vertical: 12),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceAround,
-        children: [
-          IconButton(
-            icon: const Icon(Icons.home_outlined,
-                color: AppColors.primary, size: 28),
-            onPressed: () {},
+      // SafeArea(top:false) reserva o espaço da barra de navegação do sistema
+      // (gestos/botões), evitando que os ícones fiquem por baixo dela em
+      // tablets e aparelhos com gesture bar. Adapta-se a qualquer tela.
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: [
+              IconButton(
+                tooltip: 'Minhas demandas',
+                icon: Icon(
+                  _aba == 0 ? Icons.home : Icons.home_outlined,
+                  color:
+                      _aba == 0 ? AppColors.primary : AppColors.textSecondary,
+                  size: 28,
+                ),
+                onPressed: () => setState(() => _aba = 0),
+              ),
+              IconButton(
+                tooltip: 'Chat',
+                icon: const Icon(Icons.chat_bubble_outline,
+                    color: AppColors.textSecondary, size: 28),
+                onPressed: () {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                        content: Text('Chat — disponível em sprint futura')),
+                  );
+                },
+              ),
+              IconButton(
+                tooltip: 'Perfil',
+                icon: Icon(
+                  _aba == 1 ? Icons.person : Icons.person_outline,
+                  color:
+                      _aba == 1 ? AppColors.primary : AppColors.textSecondary,
+                  size: 28,
+                ),
+                onPressed: () => setState(() => _aba = 1),
+              ),
+            ],
           ),
-          IconButton(
-            icon: const Icon(Icons.chat_bubble_outline,
-                color: AppColors.primary, size: 28),
-            onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                    content: Text('Chat — disponível em sprint futura')),
-              );
-            },
-          ),
-          IconButton(
-            icon: const Icon(Icons.person_outline,
-                color: AppColors.primary, size: 28),
-            onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                    content: Text('Perfil — disponível em sprint futura')),
-              );
-            },
-          ),
-        ],
+        ),
       ),
     );
   }

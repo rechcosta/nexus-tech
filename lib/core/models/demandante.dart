@@ -18,6 +18,7 @@ class Demandante extends Usuario {
     required this.cpfCnpj,
     required this.endereco,
     this.strikes = 0,
+    super.fotoUrl,
   }) : super(role: UserRole.demandante);
 
   @override
@@ -32,6 +33,7 @@ class Demandante extends Usuario {
         'cpfCnpj': cpfCnpj,
         'endereco': endereco,
         'strikes': strikes,
+        'fotoUrl': fotoUrl,
       };
 
   factory Demandante.fromMap(Map<String, dynamic> map) => Demandante(
@@ -47,5 +49,6 @@ class Demandante extends Usuario {
         cpfCnpj: map['cpfCnpj'] as String,
         endereco: map['endereco'] as String,
         strikes: map['strikes'] as int? ?? 0,
+        fotoUrl: map['fotoUrl'] as String?,
       );
 }

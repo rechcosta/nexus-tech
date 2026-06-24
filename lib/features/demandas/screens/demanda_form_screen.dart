@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
+import '../../../core/widgets/texto_botao.dart';
 import '../../../app/theme.dart';
 import '../../../core/models/demanda.dart';
 import '../../../core/models/demandante.dart';
@@ -424,11 +425,12 @@ class _DemandaFormScreenState extends State<DemandaFormScreen> {
               foregroundColor: AppColors.textSecondary,
               side: BorderSide(color: Colors.grey.shade300),
               minimumSize: const Size.fromHeight(56),
+              padding: const EdgeInsets.symmetric(horizontal: 8),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
               ),
             ),
-            child: Text(_ehEdicao ? 'Cancelar' : 'Descartar'),
+            child: TextoBotao(_ehEdicao ? 'Cancelar' : 'Descartar'),
           ),
         ),
       ],

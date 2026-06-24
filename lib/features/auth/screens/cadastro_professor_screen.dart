@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
+import '../../../core/widgets/texto_botao.dart';
 import '../../../app/theme.dart';
 import '../../../core/providers/auth_provider.dart';
 import '../../../core/repositories/area_repository.dart';
@@ -240,7 +241,7 @@ class _CadastroProfessorScreenState extends State<CadastroProfessorScreen> {
                             strokeWidth: 2,
                           ),
                         )
-                      : const Text('Concluir cadastro'),
+                      : const TextoBotao('Concluir cadastro'),
                 ),
                 const SizedBox(height: 24),
               ],

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../features/perfil/providers/perfil_provider.dart';
 import '../core/providers/auth_provider.dart';
 import '../features/auth/providers/cadastro_provider.dart';
 import '../features/demandas/providers/acao_demanda_provider.dart';
@@ -24,6 +25,7 @@ class App extends StatelessWidget {
         // Sprint 3 — área do professor (UC08–UC12)
         ChangeNotifierProvider(create: (_) => ProfessorDemandasProvider()),
         ChangeNotifierProvider(create: (_) => AcaoDemandaProvider()),
+        ChangeNotifierProvider(create: (_) => PerfilProvider()),
       ],
       child: MaterialApp(
         title: 'Nexus Tech',
