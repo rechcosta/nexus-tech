@@ -4,13 +4,19 @@ import 'package:provider/provider.dart';
 import '../../perfil/screens/perfil_screen.dart';
 import '../../../app/theme.dart';
 import '../../../core/providers/auth_provider.dart';
+import '../../chat/providers/chats_provider.dart';
+import '../../chat/screens/chats_screen.dart';
+import '../../notificacoes/providers/notificacoes_provider.dart';
+import '../../notificacoes/widgets/sino_notificacoes.dart';
 import '../providers/professor_demandas_provider.dart';
 import 'minhas_demandas_professor_screen.dart';
 import 'prateleira_screen.dart';
 
-/// Casca da área do professor. Mantém as duas abas (Prateleira e Minhas
-/// Demandas) vivas via [IndexedStack] para preservar scroll e estado ao
-/// alternar, e dispara a observação dos streams uma única vez.
+/// Casca da área do professor. Mantém as abas (Prateleira, Minhas Demandas,
+/// Conversas e Perfil) vivas via [IndexedStack] para preservar scroll e estado
+/// ao alternar, e dispara a observação de todos os streams globais uma única
+/// vez — inclusive os de conversas e notificações, que alimentam badges
+/// visíveis de qualquer aba.
 class ProfessorHomeScreen extends StatefulWidget {
   const ProfessorHomeScreen({super.key});
 
@@ -25,15 +31,19 @@ class _ProfessorHomeScreenState extends State<ProfessorHomeScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
       final uid = context.read<AuthProvider>().usuario?.uid;
-      if (uid != null) {
-        context.read<ProfessorDemandasProvider>().observar(uid);
-      }
+      if (uid == null) return;
+      context.read<ProfessorDemandasProvider>().observar(uid);
+      context.read<ChatsProvider>().observar(uid);
+      context.read<NotificacoesProvider>().observar(uid);
     });
   }
 
   @override
   Widget build(BuildContext context) {
+    final naoLidasChat = context.watch<ChatsProvider>().totalNaoLidas;
+
     return Scaffold(
       body: SafeArea(
         child: IndexedStack(
@@ -41,6 +51,7 @@ class _ProfessorHomeScreenState extends State<ProfessorHomeScreen> {
           children: const [
             PrateleiraScreen(),
             MinhasDemandasProfessorScreen(),
+            ChatsScreen(),
             PerfilScreen(comoAba: true), // UC23 — perfil do professor
           ],
         ),
@@ -50,19 +61,29 @@ class _ProfessorHomeScreenState extends State<ProfessorHomeScreen> {
         onDestinationSelected: (i) => setState(() => _aba = i),
         backgroundColor: AppColors.background,
         indicatorColor: AppColors.primary.withValues(alpha: 0.12),
-        destinations: const [
-          NavigationDestination(
+        destinations: [
+          const NavigationDestination(
             icon: Icon(Icons.storefront_outlined),
             selectedIcon: Icon(Icons.storefront, color: AppColors.primary),
             label: 'Prateleira',
           ),
-          NavigationDestination(
+          const NavigationDestination(
             icon: Icon(Icons.folder_outlined),
             selectedIcon: Icon(Icons.folder, color: AppColors.primary),
             label: 'Minhas Demandas',
           ),
-          // no NavigationBar > destinations, adicione a 3ª:
           NavigationDestination(
+            icon: comBadge(
+              const Icon(Icons.chat_bubble_outline),
+              naoLidasChat,
+            ),
+            selectedIcon: comBadge(
+              const Icon(Icons.chat_bubble, color: AppColors.primary),
+              naoLidasChat,
+            ),
+            label: 'Conversas',
+          ),
+          const NavigationDestination(
             icon: Icon(Icons.person_outline),
             selectedIcon: Icon(Icons.person, color: AppColors.primary),
             label: 'Perfil',
@@ -71,4 +92,18 @@ class _ProfessorHomeScreenState extends State<ProfessorHomeScreen> {
       ),
     );
   }
+}
+
+/// Envolve um ícone de navegação com a pastilha de contagem quando há algo
+/// pendente. Compartilhado entre as barras do professor e do demandante para
+/// que o badge se comporte igual nos dois papéis.
+Widget comBadge(Widget icone, int valor) {
+  if (valor <= 0) return icone;
+  return Stack(
+    clipBehavior: Clip.none,
+    children: [
+      icone,
+      Positioned(right: -8, top: -4, child: ContadorBadge(valor: valor)),
+    ],
+  );
 }

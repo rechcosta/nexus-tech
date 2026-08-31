@@ -43,7 +43,28 @@ android {
     }
 
     buildTypes {
+        // Builds de DEBUG apontam para o ambiente de teste
+        // (nexus-tech-2025-dev) e por isso precisam de applicationId próprio.
+        //
+        // Motivo: o Google Cloud trata o par (applicationId + SHA-1 do
+        // certificado) como GLOBALMENTE único. O par
+        // `br.edu.ifrs.osorio.nexus_tech` + SHA-1 da keystore de debug já
+        // pertence ao projeto de produção, então o projeto de teste não
+        // conseguia criar o próprio cliente OAuth — e o login com Google
+        // falhava com ApiException 10 (DEVELOPER_ERROR), sem mensagem útil.
+        //
+        // O sufixo desempata sem tocar em produção, e de quebra permite os
+        // dois apps instalados no mesmo aparelho.
+        // Ver docs/AMBIENTES.md.
+        debug {
+            applicationIdSuffix = ".dev"
+            // Rótulo distinto na gaveta de apps — sem isto ficam dois ícones
+            // idênticos e não há como saber qual aponta para qual ambiente.
+            manifestPlaceholders["appLabel"] = "Nexus Tech DEV"
+        }
+
         release {
+            manifestPlaceholders["appLabel"] = "Nexus Tech"
             signingConfig = if (System.getenv("KEYSTORE_PATH") != null) {
                 signingConfigs.getByName("release")
             } else {

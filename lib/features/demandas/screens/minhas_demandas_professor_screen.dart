@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../../../app/theme.dart';
 import '../../../core/providers/auth_provider.dart';
+import '../../notificacoes/widgets/sino_notificacoes.dart';
 import '../providers/professor_demandas_provider.dart';
 import '../widgets/demanda_card.dart';
 import '../widgets/estado_lista.dart';
@@ -136,6 +137,7 @@ class _Header extends StatelessWidget {
                 ),
               ),
               const Spacer(),
+              const SinoNotificacoes(),
               IconButton(
                 icon: const Icon(Icons.logout, color: AppColors.primary),
                 tooltip: 'Sair',

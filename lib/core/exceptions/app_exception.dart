@@ -48,3 +48,11 @@ class ConflictException extends AppException {
 class AuthException extends AppException {
   const AuthException() : super('Falha na autenticação. Tente novamente.');
 }
+
+/// Ação bloqueada porque a conta do usuário está suspensa/banida (3 strikes)
+/// ou o perfil de professor foi desativado pela administração.
+/// Diferente de [PermissionException]: aqui a permissão existe em tese, mas o
+/// estado da conta a suspende — a mensagem precisa explicar isso.
+class ContaBloqueadaException extends AppException {
+  const ContaBloqueadaException(super.message);
+}

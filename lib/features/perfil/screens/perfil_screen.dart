@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../../app/theme.dart';
+import '../../../core/constants/app_constants.dart';
 import '../../../core/models/demanda.dart';
 import '../../../core/models/demandante.dart';
 import '../../../core/models/professor.dart';
@@ -139,6 +140,10 @@ class _PerfilScreenState extends State<PerfilScreen> {
                   : 'Resumo das demandas'),
               const SizedBox(height: 12),
               _estatisticas(usuario),
+              if (usuario is Demandante && usuario.strikes > 0) ...[
+                const SizedBox(height: 28),
+                _avisoAdvertencias(usuario),
+              ],
               const SizedBox(height: 28),
               _tituloSecao('Dados'),
               const SizedBox(height: 12),
@@ -156,6 +161,80 @@ class _PerfilScreenState extends State<PerfilScreen> {
           ),
         ),
       ],
+    );
+  }
+
+  /// Advertências acumuladas pelo demandante.
+  ///
+  /// Só aparece quando existe pelo menos uma: mostrar "0 de 3" para todo mundo
+  /// transformaria uma tela de perfil numa ameaça permanente. Quando existe,
+  /// porém, a pessoa tem direito de saber onde está — descobrir a suspensão só
+  /// no momento em que ela acontece seria surpresa, não consequência.
+  Widget _avisoAdvertencias(Demandante demandante) {
+    final restantes = demandante.strikesRestantes;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.deepOrange.shade50,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.deepOrange.shade200),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.warning_amber_outlined,
+                  size: 20, color: Colors.deepOrange.shade800),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Advertências: ${demandante.strikes} de '
+                  '${AppConstants.strikesParaBanimento}',
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.deepOrange.shade900,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              for (var i = 0; i < AppConstants.strikesParaBanimento; i++) ...[
+                if (i > 0) const SizedBox(width: 6),
+                Expanded(
+                  child: Container(
+                    height: 8,
+                    decoration: BoxDecoration(
+                      color: i < demandante.strikes
+                          ? Colors.deepOrange.shade600
+                          : Colors.deepOrange.shade100,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+          const SizedBox(height: 10),
+          Text(
+            restantes == 1
+                ? 'Mais uma advertência suspende sua conta. Denúncias '
+                    'procedentes de professores geram advertências.'
+                : 'Faltam $restantes advertências para a suspensão da conta.',
+            style: TextStyle(
+              fontSize: 13,
+              height: 1.4,
+              color: Colors.deepOrange.shade900,
+            ),
+          ),
+        ],
+      ),
     );
   }
 

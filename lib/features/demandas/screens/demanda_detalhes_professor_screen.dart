@@ -2,14 +2,19 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../../app/theme.dart';
+import '../../../core/exceptions/app_exception.dart';
 import '../../../core/models/anexo.dart';
 import '../../../core/models/demanda.dart';
 import '../../../core/models/professor.dart';
 import '../../../core/providers/auth_provider.dart';
 import '../../../core/repositories/demanda_repository.dart';
+import '../../../core/repositories/denuncia_repository.dart';
+import '../../../core/repositories/usuario_repository.dart';
+import '../../chat/screens/chat_screen.dart';
 import '../providers/acao_demanda_provider.dart';
 import '../widgets/anexos_visualizacao.dart';
 import '../widgets/demanda_detalhe_widgets.dart';
+import '../widgets/denunciar_demanda_dialog.dart';
 import '../widgets/status_badge.dart';
 import 'entrega_demanda_screen.dart';
 
@@ -30,6 +35,29 @@ class DemandaDetalhesProfessorScreen extends StatefulWidget {
 class _DemandaDetalhesProfessorScreenState
     extends State<DemandaDetalhesProfessorScreen> {
   final _repository = DemandaRepository();
+  final _denunciaRepository = DenunciaRepository();
+  final _usuarioRepository = UsuarioRepository();
+
+  /// `null` enquanto a checagem não voltou — o botão só aparece depois, para
+  /// não oferecer "denunciar" a quem já denunciou e receber um erro no clique.
+  bool? _jaDenunciou;
+  bool _denunciando = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _verificarDenuncia();
+  }
+
+  Future<void> _verificarDenuncia() async {
+    final prof = context.read<AuthProvider>().usuario;
+    if (prof is! Professor) return;
+    final ja = await _denunciaRepository.jaDenunciou(
+      demandaId: widget.demandaId,
+      professorUid: prof.uid,
+    );
+    if (mounted) setState(() => _jaDenunciou = ja);
+  }
 
   Professor? get _professor {
     final u = context.read<AuthProvider>().usuario;
@@ -106,6 +134,54 @@ class _DemandaDetalhesProfessorScreenState
     } else if (acao.erro != null) {
       _feedback(acao.erro!, AppColors.error);
     }
+  }
+
+  /// UC-admin — denúncia de demanda pelo professor.
+  ///
+  /// Os uids dos admins são buscados na hora porque a notificação precisa de
+  /// uid, e admins entram na plataforma ao longo do tempo. A falha dessa busca
+  /// não impede a denúncia: a fila do painel é lida do Firestore de qualquer
+  /// forma, a notificação é só o atalho.
+  Future<void> _denunciar(Demanda d) async {
+    final prof = _professor;
+    if (prof == null || _denunciando) return;
+
+    final dados = await DenunciarDemandaDialog.mostrar(
+      context,
+      tituloDemanda: d.titulo,
+    );
+    if (dados == null || !mounted) return;
+
+    setState(() => _denunciando = true);
+    try {
+      final adminUids = await _usuarioRepository.buscarAdminUids();
+      await _denunciaRepository.denunciar(
+        demanda: d,
+        professorUid: prof.uid,
+        professorNome: prof.nome,
+        motivo: dados.motivo,
+        descricao: dados.descricao,
+        adminUids: adminUids,
+      );
+      if (!mounted) return;
+      setState(() => _jaDenunciou = true);
+      _feedback(
+        'Denúncia enviada. A administração vai analisar.',
+        AppColors.success,
+      );
+    } on AppException catch (e) {
+      _feedback(e.message, AppColors.error);
+    } catch (_) {
+      _feedback('Não foi possível registrar a denúncia.', AppColors.error);
+    } finally {
+      if (mounted) setState(() => _denunciando = false);
+    }
+  }
+
+  void _abrirChat(Demanda d) {
+    Navigator.of(context).push(MaterialPageRoute<void>(
+      builder: (_) => ChatScreen(chatId: d.id),
+    ));
   }
 
   Future<void> _concluir(Demanda d) async {
@@ -222,6 +298,10 @@ class _DemandaDetalhesProfessorScreenState
                   conteudo: demanda.descricaoSolucao!,
                 ),
               ],
+              if (_podeConversar(demanda, souResponsavel)) ...[
+                const SizedBox(height: 24),
+                _botaoConversa(demanda),
+              ],
               const SizedBox(height: 24),
               StreamBuilder<List<Anexo>>(
                 stream: _repository.listarAnexos(demanda.id),
@@ -242,11 +322,71 @@ class _DemandaDetalhesProfessorScreenState
                   return AnexosVisualizacao(anexos: s.data ?? const []);
                 },
               ),
+              const SizedBox(height: 24),
+              _linkDenuncia(demanda),
             ],
           ),
         ),
         _barraAcoes(demanda, souResponsavel),
       ],
+    );
+  }
+
+  /// O chat existe a partir do momento em que a demanda é assumida (UC11 R03)
+  /// e permanece legível depois da entrega — por isso `concluida` também conta.
+  bool _podeConversar(Demanda d, bool souResponsavel) =>
+      souResponsavel &&
+      (d.status == StatusDemanda.emProducao ||
+          d.status == StatusDemanda.concluida);
+
+  Widget _botaoConversa(Demanda d) {
+    return OutlinedButton.icon(
+      onPressed: () => _abrirChat(d),
+      icon: const Icon(Icons.chat_bubble_outline, size: 20),
+      label: const Text('Conversar com o demandante'),
+      style: OutlinedButton.styleFrom(
+        foregroundColor: AppColors.primary,
+        side: const BorderSide(color: AppColors.primary),
+        minimumSize: const Size.fromHeight(52),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+    );
+  }
+
+  /// Denunciar é uma ação rara e de peso: fica no fim do conteúdo, discreta,
+  /// e não disputa espaço com as ações do ciclo de vida na barra inferior.
+  Widget _linkDenuncia(Demanda d) {
+    if (_jaDenunciou == null) return const SizedBox.shrink();
+
+    if (_jaDenunciou!) {
+      return Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.flag, size: 16, color: Colors.grey.shade500),
+          const SizedBox(width: 6),
+          Flexible(
+            child: Text(
+              'Você denunciou esta demanda. A administração está avaliando.',
+              style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+            ),
+          ),
+        ],
+      );
+    }
+
+    return Center(
+      child: TextButton.icon(
+        onPressed: _denunciando ? null : () => _denunciar(d),
+        icon: _denunciando
+            ? const SizedBox(
+                width: 14,
+                height: 14,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              )
+            : const Icon(Icons.flag_outlined, size: 18),
+        label: const Text('Denunciar esta demanda'),
+        style: TextButton.styleFrom(foregroundColor: AppColors.error),
+      ),
     );
   }
 

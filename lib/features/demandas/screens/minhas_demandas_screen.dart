@@ -3,12 +3,17 @@ import 'package:provider/provider.dart';
 
 import '../../../app/theme.dart';
 import '../../../core/providers/auth_provider.dart';
+import '../../notificacoes/widgets/sino_notificacoes.dart';
+import '../../chat/providers/chats_provider.dart';
+import '../../chat/screens/chats_screen.dart';
+import '../../notificacoes/providers/notificacoes_provider.dart';
 import '../../perfil/screens/perfil_screen.dart';
 import '../providers/demanda_form_provider.dart';
 import '../providers/demandas_provider.dart';
 import '../widgets/demanda_card.dart';
 import '../widgets/filtros_bottom_sheet.dart';
 import 'demanda_detalhes_screen.dart';
+import 'professor_home_screen.dart' show comBadge;
 import 'demanda_form_screen.dart';
 
 class MinhasDemandasScreen extends StatefulWidget {
@@ -21,19 +26,23 @@ class MinhasDemandasScreen extends StatefulWidget {
 class _MinhasDemandasScreenState extends State<MinhasDemandasScreen> {
   final _buscaController = TextEditingController();
 
-  /// 0 = lista de demandas · 1 = perfil. O menu inferior alterna entre eles
-  /// mantendo-se sempre visível (mesmo padrão da área do professor).
+  /// 0 = lista de demandas · 1 = conversas · 2 = perfil. O menu inferior
+  /// alterna entre eles mantendo-se sempre visível (mesmo padrão da área do
+  /// professor).
   int _aba = 0;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final auth = context.read<AuthProvider>();
-      final uid = auth.usuario?.uid;
-      if (uid != null) {
-        context.read<DemandasProvider>().observar(uid);
-      }
+      if (!mounted) return;
+      final uid = context.read<AuthProvider>().usuario?.uid;
+      if (uid == null) return;
+      context.read<DemandasProvider>().observar(uid);
+      // Conversas e notificações são globais: os badges precisam existir em
+      // qualquer aba, não só quando a respectiva tela está aberta.
+      context.read<ChatsProvider>().observar(uid);
+      context.read<NotificacoesProvider>().observar(uid);
     });
   }
 
@@ -84,6 +93,7 @@ class _MinhasDemandasScreenState extends State<MinhasDemandasScreen> {
                 Expanded(child: _buildLista()),
               ],
             ),
+            const ChatsScreen(),
             const PerfilScreen(comoAba: true),
           ],
         ),
@@ -119,6 +129,7 @@ class _MinhasDemandasScreenState extends State<MinhasDemandasScreen> {
                 ),
               ),
               const Spacer(),
+              const SinoNotificacoes(),
               IconButton(
                 icon: const Icon(Icons.logout, color: AppColors.primary),
                 tooltip: 'Sair',
@@ -262,25 +273,29 @@ class _MinhasDemandasScreenState extends State<MinhasDemandasScreen> {
                 onPressed: () => setState(() => _aba = 0),
               ),
               IconButton(
-                tooltip: 'Chat',
-                icon: const Icon(Icons.chat_bubble_outline,
-                    color: AppColors.textSecondary, size: 28),
-                onPressed: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                        content: Text('Chat — disponível em sprint futura')),
-                  );
-                },
+                tooltip: 'Conversas',
+                icon: comBadge(
+                  Icon(
+                    _aba == 1
+                        ? Icons.chat_bubble
+                        : Icons.chat_bubble_outline,
+                    color:
+                        _aba == 1 ? AppColors.primary : AppColors.textSecondary,
+                    size: 28,
+                  ),
+                  context.watch<ChatsProvider>().totalNaoLidas,
+                ),
+                onPressed: () => setState(() => _aba = 1),
               ),
               IconButton(
                 tooltip: 'Perfil',
                 icon: Icon(
-                  _aba == 1 ? Icons.person : Icons.person_outline,
+                  _aba == 2 ? Icons.person : Icons.person_outline,
                   color:
-                      _aba == 1 ? AppColors.primary : AppColors.textSecondary,
+                      _aba == 2 ? AppColors.primary : AppColors.textSecondary,
                   size: 28,
                 ),
-                onPressed: () => setState(() => _aba = 1),
+                onPressed: () => setState(() => _aba = 2),
               ),
             ],
           ),

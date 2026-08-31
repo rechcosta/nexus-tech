@@ -17,26 +17,64 @@ class UsuarioRepository {
   Future<Usuario?> buscarPorUid(String uid) async {
     try {
       final doc = await _users.doc(uid).get();
-      if (!doc.exists) return null;
-
-      final data = doc.data()!;
-      final roleStr = data['role'] as String?;
-      if (roleStr == null) {
-        // Documento corrompido: existe mas sem role válido.
-        // Trata como inexistente para forçar novo cadastro.
-        return null;
-      }
-
-      final role = UserRole.values.where((e) => e.name == roleStr).firstOrNull;
-      if (role == null) return null;
-
-      return switch (role) {
-        UserRole.professor => Professor.fromMap(data),
-        UserRole.demandante => Demandante.fromMap(data),
-        UserRole.administrador => Administrador.fromMap(data),
-      };
+      return _desserializar(doc.data());
     } catch (e) {
       throw mapFirestoreError(e, recurso: 'Usuário');
+    }
+  }
+
+  /// Observa o próprio perfil em tempo real.
+  ///
+  /// Existe para que decisões administrativas cheguem **na sessão aberta**:
+  /// quando o admin bane um demandante ou desativa um professor, o app precisa
+  /// reagir sem esperar um novo login. Com uma leitura pontual, o usuário
+  /// continuaria operando com o perfil antigo até fechar o app.
+  ///
+  /// Emite `null` quando o documento não existe (primeiro acesso, antes do
+  /// cadastro) ou quando o `role` está ausente/corrompido — ambos os casos são
+  /// tratados como "precisa cadastrar".
+  Stream<Usuario?> observarPorUid(String uid) {
+    return _users.doc(uid).snapshots().map((doc) => _desserializar(doc.data()));
+  }
+
+  /// Instancia a subclasse certa a partir do `role` gravado.
+  /// `null` para documento inexistente ou com role inválido.
+  Usuario? _desserializar(Map<String, dynamic>? data) {
+    if (data == null) return null;
+
+    final roleStr = data['role'] as String?;
+    if (roleStr == null) {
+      // Documento corrompido: existe mas sem role válido.
+      // Trata como inexistente para forçar novo cadastro.
+      return null;
+    }
+
+    final role = UserRole.values.where((e) => e.name == roleStr).firstOrNull;
+    if (role == null) return null;
+
+    return switch (role) {
+      UserRole.professor => Professor.fromMap(data),
+      UserRole.demandante => Demandante.fromMap(data),
+      UserRole.administrador => Administrador.fromMap(data),
+    };
+  }
+
+  /// Uids dos administradores cadastrados — destinatários das denúncias.
+  ///
+  /// Lê da coleção em vez de derivar de `AppConstants.adminEmails` porque a
+  /// notificação precisa de **uid**, e o e-mail só vira uid depois do primeiro
+  /// login do admin. Um admin que nunca entrou no app não recebe notificação
+  /// in-app — ele verá a fila de denúncias assim que entrar.
+  ///
+  /// Best-effort: falhar aqui não pode impedir o registro da denúncia.
+  Future<Set<String>> buscarAdminUids() async {
+    try {
+      final snap = await _users
+          .where('role', isEqualTo: UserRole.administrador.name)
+          .get();
+      return snap.docs.map((d) => d.id).toSet();
+    } catch (_) {
+      return const {};
     }
   }
 

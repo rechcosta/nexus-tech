@@ -5,9 +5,35 @@ import '../exceptions/app_exception.dart';
 import '../exceptions/firestore_error_handler.dart';
 import '../models/anexo.dart';
 import '../models/demanda.dart';
+import '../models/notificacao.dart';
+import 'chat_repository.dart';
+import 'notificacao_repository.dart';
 
 class DemandaRepository {
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final FirebaseFirestore _firestore;
+
+  /// Colaboradores dos efeitos do ciclo de vida: cada transição de status
+  /// abre/encerra a conversa e avisa a outra ponta. Injetáveis para teste.
+  final ChatRepository _chats;
+  final NotificacaoRepository _notificacoes;
+
+  DemandaRepository({
+    FirebaseFirestore? firestore,
+    ChatRepository? chatRepository,
+    NotificacaoRepository? notificacaoRepository,
+  })  : _firestore = firestore ?? FirebaseFirestore.instance,
+        // Os colaboradores herdam a MESMA instância do Firestore: a criação do
+        // chat acontece dentro da transação aberta aqui, e uma transação não
+        // atravessa duas instâncias. Sem isso, injetar um emulador no
+        // repositório de demandas deixaria o chat apontando para produção.
+        _chats = chatRepository ??
+            ChatRepository(
+              firestore: firestore,
+              notificacaoRepository:
+                  notificacaoRepository ?? NotificacaoRepository(firestore: firestore),
+            ),
+        _notificacoes = notificacaoRepository ??
+            NotificacaoRepository(firestore: firestore);
 
   static const String _collectionDemandas = 'demandas';
   static const String _subcollectionAnexos = 'anexos';
@@ -125,6 +151,12 @@ class DemandaRepository {
     required String motivo,
   }) async {
     try {
+      // Lê antes de escrever para saber se havia um professor envolvido — é
+      // ele quem precisa ser avisado, e é o chat dele que precisa encerrar.
+      final snap = await _demandas.doc(id).get();
+      final anterior =
+          snap.exists ? Demanda.fromMap(snap.id, snap.data()!) : null;
+
       final agora = DateTime.now().toIso8601String();
       await _demandas.doc(id).update({
         'status': StatusDemanda.cancelada.name,
@@ -138,6 +170,23 @@ class DemandaRepository {
         autorUid: autorUid,
         metadados: {'motivo': motivo},
       );
+
+      if (anterior?.professorUid != null) {
+        await _notificacoes.enfileirar(
+          destinatarioUid: anterior!.professorUid!,
+          autorUid: autorUid,
+          autorNome: anterior.demandanteNome,
+          tipo: TipoNotificacao.demandaCancelada,
+          titulo: 'Demanda cancelada pelo demandante',
+          corpo: '"${anterior.titulo}" foi cancelada. Motivo: $motivo',
+          demandaId: id,
+        );
+        await _chats.encerrar(
+          chatId: id,
+          motivo: 'Demanda cancelada pelo demandante. '
+              'A conversa fica disponível apenas para consulta.',
+        );
+      }
     } catch (e) {
       throw mapFirestoreError(e, recurso: 'Demanda');
     }
@@ -283,6 +332,7 @@ class DemandaRepository {
     required String professorNome,
   }) async {
     try {
+      late Demanda emAnalise;
       await _firestore.runTransaction((tx) async {
         final ref = _demandas.doc(demandaId);
         final snap = await tx.get(ref);
@@ -294,6 +344,7 @@ class DemandaRepository {
             'Esta demanda não está mais disponível para análise.',
           );
         }
+        emAnalise = atual;
 
         final agora = DateTime.now();
         tx.update(ref, {
@@ -311,6 +362,17 @@ class DemandaRepository {
         demandaId: demandaId,
         acao: 'marcar_analise',
         autorUid: professorUid,
+      );
+
+      await _notificacoes.enfileirar(
+        destinatarioUid: emAnalise.demandanteUid,
+        autorUid: professorUid,
+        autorNome: professorNome,
+        tipo: TipoNotificacao.demandaEmAnalise,
+        titulo: 'Sua demanda está em análise',
+        corpo: '$professorNome está avaliando "${emAnalise.titulo}". '
+            'Você será avisado assim que houver uma decisão.',
+        demandaId: demandaId,
       );
     } catch (e) {
       if (e is AppException) rethrow;
@@ -331,6 +393,7 @@ class DemandaRepository {
     bool automatico = false,
   }) async {
     try {
+      late Demanda devolvida;
       await _firestore.runTransaction((tx) async {
         final ref = _demandas.doc(demandaId);
         final snap = await tx.get(ref);
@@ -342,6 +405,7 @@ class DemandaRepository {
             'Esta demanda não está mais em análise por você.',
           );
         }
+        devolvida = atual;
 
         tx.update(ref, {
           'status': StatusDemanda.cadastrada.name,
@@ -358,6 +422,23 @@ class DemandaRepository {
         acao: automatico ? 'rollback_analise' : 'rejeitar',
         autorUid: professorUid,
       );
+
+      // O demandante precisa saber que a demanda voltou a ficar disponível —
+      // e a mensagem muda conforme a devolução tenha sido decisão do professor
+      // ou expiração da janela de 24h, porque a leitura do fato é diferente.
+      await _notificacoes.enfileirar(
+        destinatarioUid: devolvida.demandanteUid,
+        autorUid: professorUid,
+        autorNome: devolvida.professorNome ?? 'Professor',
+        tipo: TipoNotificacao.demandaDevolvida,
+        titulo: 'Sua demanda voltou para a prateleira',
+        corpo: automatico
+            ? '"${devolvida.titulo}" não foi assumida dentro do prazo de '
+                'análise e voltou a ficar visível para todos os professores.'
+            : '"${devolvida.titulo}" foi devolvida à prateleira e segue '
+                'disponível para outros professores.',
+        demandaId: demandaId,
+      );
     } catch (e) {
       if (e is AppException) rethrow;
       throw mapFirestoreError(e, recurso: 'Demanda');
@@ -365,8 +446,19 @@ class DemandaRepository {
   }
 
   /// UC11 — Assume a demanda (`emAnalise` -> `emProducao`).
-  /// Registra o início da produção (para indicadores) e enfileira a
-  /// notificação do demandante. A criação do chat (UC11 R03) é Sprint 4.
+  ///
+  /// Esta é a transição que **abre o canal de comunicação**: a mesma transação
+  /// que muda o status cria o documento do chat (UC11 R03). Fazer as duas
+  /// coisas juntas elimina o estado em que a demanda está em produção mas o
+  /// demandante não tem como falar com o professor — o caso que o usuário
+  /// notaria e não teria como resolver sozinho.
+  ///
+  /// A mensagem de boas-vindas é escrita **depois** do commit, e não dentro
+  /// dele: a transação já está criando o documento do chat, e escrever numa
+  /// subcoleção de um documento criado na própria transação depende de uma
+  /// leitura que ainda não existe. Como a mensagem também é o que dá ao chat
+  /// seu primeiro `ultimaMensagemEm` (campo pelo qual a lista ordena), ela é
+  /// reenviada de forma idempotente caso falhe — ver `ChatProvider`.
   Future<void> assumir({
     required String demandaId,
     required String professorUid,
@@ -386,13 +478,22 @@ class DemandaRepository {
         }
         assumida = atual;
 
+        final agora = DateTime.now();
         tx.update(ref, {
           'status': StatusDemanda.emProducao.name,
-          'producaoIniciadaEm': DateTime.now().toIso8601String(),
+          'producaoIniciadaEm': agora.toIso8601String(),
           // A janela de análise deixa de fazer sentido após a assunção.
           'analiseExpiraEm': null,
-          'atualizadoEm': DateTime.now().toIso8601String(),
+          'atualizadoEm': agora.toIso8601String(),
         });
+
+        // UC11 R03 — chat criado junto com a assunção (ver docstring).
+        _chats.criarNaTransacao(
+          tx,
+          demanda: atual,
+          professorUid: professorUid,
+          professorNome: atual.professorNome ?? 'Professor',
+        );
       });
 
       await _registrarAuditoria(
@@ -401,15 +502,24 @@ class DemandaRepository {
         autorUid: professorUid,
       );
 
-      // UC11 R04: notificar o demandante (best-effort; despacho via FCM
-      // ficará a cargo de Cloud Function — ver docs/CLOUD_FUNCTIONS.md).
-      await _enfileirarNotificacao(
+      await _chats.registrarMensagemSistema(
+        chatId: demandaId,
+        texto: '${assumida.professorNome ?? "O professor"} assumiu a demanda '
+            '"${assumida.titulo}". Use este canal para alinhar detalhes, '
+            'prazos e entregas.',
+      );
+
+      // UC11 R04 — aviso ao demandante.
+      await _notificacoes.enfileirar(
         destinatarioUid: assumida.demandanteUid,
         autorUid: professorUid,
-        tipo: 'demanda_em_producao',
+        autorNome: assumida.professorNome ?? 'Professor',
+        tipo: TipoNotificacao.demandaEmProducao,
+        titulo: 'Sua demanda foi aceita!',
+        corpo: '${assumida.professorNome ?? "Um professor"} assumiu '
+            '"${assumida.titulo}". O chat com o professor já está disponível.',
         demandaId: demandaId,
-        tituloDemanda: assumida.titulo,
-        professorNome: assumida.professorNome,
+        chatId: demandaId,
       );
     } catch (e) {
       if (e is AppException) rethrow;
@@ -457,13 +567,23 @@ class DemandaRepository {
         autorUid: professorUid,
       );
 
-      await _enfileirarNotificacao(
+      await _notificacoes.enfileirar(
         destinatarioUid: concluida.demandanteUid,
         autorUid: professorUid,
-        tipo: 'demanda_concluida',
+        autorNome: concluida.professorNome ?? 'Professor',
+        tipo: TipoNotificacao.demandaConcluida,
+        titulo: 'Demanda concluída',
+        corpo: '${concluida.professorNome ?? "O professor"} entregou '
+            '"${concluida.titulo}". Confira a solução e os anexos.',
         demandaId: demandaId,
-        tituloDemanda: concluida.titulo,
-        professorNome: concluida.professorNome,
+        chatId: demandaId,
+      );
+
+      // A conversa vira histórico: continua legível, deixa de aceitar envios.
+      await _chats.encerrar(
+        chatId: demandaId,
+        motivo: 'Demanda concluída. A conversa fica disponível apenas para '
+            'consulta.',
       );
     } catch (e) {
       if (e is AppException) rethrow;
@@ -552,43 +672,6 @@ class DemandaRepository {
       });
     } catch (_) {
       // TODO(observabilidade): integrar com Crashlytics/Sentry
-    }
-  }
-
-  // ! ===========================
-  // ! NOTIFICAÇÕES (privado, best-effort)
-  // ! ===========================
-
-  /// Enfileira uma notificação para o destinatário (UC11/UC12 R04).
-  ///
-  /// O app apenas ESCREVE o documento. O envio do push em si (FCM) será feito
-  /// por uma Cloud Function que observa a coleção `notificacoes` e marca
-  /// `enviada: true` após despachar — ver docs/CLOUD_FUNCTIONS.md. Por isso é
-  /// best-effort: falhar aqui não pode abortar a transição de status, que é a
-  /// operação principal e já foi commitada.
-  Future<void> _enfileirarNotificacao({
-    required String destinatarioUid,
-    required String autorUid,
-    required String tipo,
-    required String demandaId,
-    required String tituloDemanda,
-    String? professorNome,
-  }) async {
-    try {
-      await _firestore.collection(AppConstants.collectionNotificacoes).add({
-        'destinatarioUid': destinatarioUid,
-        'autorUid': autorUid,
-        'tipo': tipo,
-        'demandaId': demandaId,
-        'tituloDemanda': tituloDemanda,
-        'professorNome': professorNome,
-        'lida': false,
-        // Flag consumida pela Cloud Function de despacho (FCM).
-        'enviada': false,
-        'criadoEm': DateTime.now().toIso8601String(),
-      });
-    } catch (_) {
-      // best-effort — ver docstring.
     }
   }
 }

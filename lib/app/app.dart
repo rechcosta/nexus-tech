@@ -8,6 +8,9 @@ import '../features/demandas/providers/acao_demanda_provider.dart';
 import '../features/demandas/providers/demanda_form_provider.dart';
 import '../features/demandas/providers/demandas_provider.dart';
 import '../features/demandas/providers/professor_demandas_provider.dart';
+import '../features/admin/providers/admin_provider.dart';
+import '../features/chat/providers/chats_provider.dart';
+import '../features/notificacoes/providers/notificacoes_provider.dart';
 import 'router.dart';
 import 'theme.dart';
 
@@ -26,6 +29,12 @@ class App extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => ProfessorDemandasProvider()),
         ChangeNotifierProvider(create: (_) => AcaoDemandaProvider()),
         ChangeNotifierProvider(create: (_) => PerfilProvider()),
+        // Sprint 4 — comunicação, avisos e moderação (UC11 R03, UC-admin).
+        // Globais porque alimentam badges que precisam existir em qualquer
+        // aba, não só na tela que os consome.
+        ChangeNotifierProvider(create: (_) => NotificacoesProvider()),
+        ChangeNotifierProvider(create: (_) => ChatsProvider()),
+        ChangeNotifierProvider(create: (_) => AdminProvider()),
       ],
       child: MaterialApp(
         title: 'Nexus Tech',

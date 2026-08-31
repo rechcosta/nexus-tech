@@ -6,9 +6,17 @@ service firebase.storage {
       return request.auth != null;
     }
 
+    // ! Manter sincronizado com app_constants.dart e firestore.rules.
+    // Hoje nenhuma regra de Storage depende do papel — anexos são autorizados
+    // pela posse da demanda no Firestore e pelo `enviadoPorUid` no metadata.
+    // A função fica documentada aqui para o dia em que isso mudar.
     function isProfessorEmail() {
-      return isSignedIn() &&
-        request.auth.token.email.matches('.*@osorio[.]ifrs[.]edu[.]br');
+      return isSignedIn() && (
+        request.auth.token.email.matches('.*@osorio[.]ifrs[.]edu[.]br')
+        // ===== INÍCIO — E-MAIL DE TESTE (PROFESSOR) — REMOVER ANTES DE PRODUÇÃO =====
+        || request.auth.token.email in ['gustavinho.rechcosta@gmail.com']
+        // ===== FIM — E-MAIL DE TESTE (PROFESSOR) =====
+      );
     }
 
     // ============== FOTO DE PERFIL ==============

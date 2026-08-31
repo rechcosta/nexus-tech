@@ -1,3 +1,4 @@
+import '../constants/app_constants.dart';
 import 'enums.dart';
 import 'usuario.dart';
 
@@ -6,7 +7,17 @@ class Demandante extends Usuario {
   final TipoDemandante tipo;
   final String cpfCnpj;
   final String endereco;
+
+  /// Advertências acumuladas por denúncias julgadas procedentes.
+  /// Em [AppConstants.strikesParaBanimento] a conta é banida.
   final int strikes;
+
+  /// `true` quando a conta atingiu o limite de strikes. Banimento é
+  /// **permanente por decisão administrativa**: só um admin reverte
+  /// (`AdminRepository.reverterBanimento`), o que zera os strikes.
+  final bool banido;
+  final DateTime? banidoEm;
+  final String? motivoBanimento;
 
   Demandante({
     required super.uid,
@@ -18,8 +29,15 @@ class Demandante extends Usuario {
     required this.cpfCnpj,
     required this.endereco,
     this.strikes = 0,
+    this.banido = false,
+    this.banidoEm,
+    this.motivoBanimento,
     super.fotoUrl,
   }) : super(role: UserRole.demandante);
+
+  /// Quantos strikes ainda faltam para o banimento. Zero quando já banido.
+  int get strikesRestantes =>
+      banido ? 0 : (AppConstants.strikesParaBanimento - strikes).clamp(0, 99);
 
   @override
   Map<String, dynamic> toMap() => {
@@ -33,6 +51,9 @@ class Demandante extends Usuario {
         'cpfCnpj': cpfCnpj,
         'endereco': endereco,
         'strikes': strikes,
+        'banido': banido,
+        'banidoEm': banidoEm?.toIso8601String(),
+        'motivoBanimento': motivoBanimento,
         'fotoUrl': fotoUrl,
       };
 
@@ -48,7 +69,11 @@ class Demandante extends Usuario {
         ),
         cpfCnpj: map['cpfCnpj'] as String,
         endereco: map['endereco'] as String,
-        strikes: map['strikes'] as int? ?? 0,
+        strikes: (map['strikes'] as num?)?.toInt() ?? 0,
+        // Contas criadas antes do sistema de strikes não têm o campo.
+        banido: map['banido'] as bool? ?? false,
+        banidoEm: DateTime.tryParse(map['banidoEm'] as String? ?? ''),
+        motivoBanimento: map['motivoBanimento'] as String?,
         fotoUrl: map['fotoUrl'] as String?,
       );
 }

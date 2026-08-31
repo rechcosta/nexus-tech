@@ -17,7 +17,7 @@ service cloud.firestore {
       // ! IMPORTANTE: manter sincronizado com app_constants.dart > adminEmails
       return isSignedIn() && request.auth.token.email in [
         // 'karen.borges@osorio.ifrs.edu.br',
-        // 'rechcostagustavo@gmail.com'
+        'rechcostagustavo@gmail.com'
       ];
     }
 
@@ -26,23 +26,81 @@ service cloud.firestore {
         request.auth.token.email.matches('.*@osorio[.]ifrs[.]edu[.]br')
         // ===== INÍCIO — E-MAIL DE TESTE (PROFESSOR) — REMOVER ANTES DE PRODUÇÃO =====
         // ! Manter sincronizado com app_constants.dart > professorTestEmails
+        // ! Nunca repetir aqui um e-mail de isAdminEmail(): admin tem
+        // ! precedência no app e a conta deixaria de exercer o papel.
         || request.auth.token.email in [
-          'rechcostagustavo@gmail.com'
+          'gustavinho.rechcosta@gmail.com'
         ]
         // ===== FIM — E-MAIL DE TESTE (PROFESSOR) =====
       );
     }
 
-    function existingDemanda() {
-      return resource.data;
+    // Perfil de quem está escrevendo. Custa uma leitura por avaliação, então
+    // só é chamado nas escritas que dependem do ESTADO da conta — nunca em
+    // leituras, que são o caminho quente do app.
+    function meuPerfil() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    // Demandante suspenso por acúmulo de strikes (3 denúncias procedentes).
+    // `get(campo, padrão)` cobre contas criadas antes do sistema de strikes,
+    // que não têm o campo.
+    function contaSuspensa() {
+      return meuPerfil().get('banido', false) == true;
+    }
+
+    // Professor com perfil ligado (UC04 R01). Contas antigas sem o campo são
+    // tratadas como ativas — o padrão histórico do sistema.
+    function professorAtivo() {
+      return meuPerfil().get('ativo', true) == true;
+    }
+
+    function demanda(id) {
+      return get(/databases/$(database)/documents/demandas/$(id)).data;
+    }
+
+    function chatDe(id) {
+      return get(/databases/$(database)/documents/chats/$(id)).data;
     }
 
     // ============== USERS ==============
 
     match /users/{uid} {
-      allow read: if isSignedIn();
-      allow create: if isOwner(uid);
-      allow update: if isOwner(uid) || isAdminEmail();
+      // O documento do usuário guarda CPF/CNPJ, telefone e endereço. Só o
+      // próprio dono, professores (que precisam identificar demandantes) e
+      // admins leem. Um demandante não enxerga a ficha de outro.
+      allow read: if isSignedIn() && (
+        isOwner(uid) || isProfessorEmail() || isAdminEmail()
+      );
+
+      // Ninguém se cadastra já com strikes zerados por conveniência, banido,
+      // ou desativado — e o papel declarado precisa bater com o e-mail. Sem
+      // isso, qualquer conta poderia se declarar professor ou administrador.
+      allow create: if isOwner(uid)
+        && (
+          (request.resource.data.role == 'demandante') ||
+          (request.resource.data.role == 'professor' && isProfessorEmail()) ||
+          (request.resource.data.role == 'administrador' && isAdminEmail())
+        )
+        && request.resource.data.get('strikes', 0) == 0
+        && request.resource.data.get('banido', false) == false
+        && request.resource.data.get('ativo', true) == true;
+
+      // O dono edita apenas os campos do próprio perfil (UC23). `strikes`,
+      // `banido` e `ativo` ficam de fora de propósito: são decisões
+      // administrativas, e deixá-los na lista permitiria a qualquer usuário
+      // limpar as próprias advertências ou reativar o perfil desligado.
+      allow update: if isSignedIn() && (
+        (
+          isOwner(uid) &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'nome', 'telefone', 'tipo', 'endereco',
+            'areasTecnicas', 'areasInteresse', 'fotoUrl'
+          ])
+        ) ||
+        isAdminEmail()
+      );
+
       allow delete: if false;
     }
 
@@ -71,10 +129,14 @@ service cloud.firestore {
         isAdminEmail()
       );
 
-      // Apenas demandante autenticado cria sua própria demanda (UC15 R01).
+      // Apenas demandante autenticado e NÃO suspenso cria sua própria demanda
+      // (UC15 R01). A suspensão é verificada aqui, e não só na UI, porque é o
+      // efeito prático do banimento: sem isso, uma conta banida continuaria
+      // publicando via API direta.
       allow create: if isSignedIn() &&
         request.resource.data.demandanteUid == request.auth.uid &&
-        request.resource.data.status == 'cadastrada';
+        request.resource.data.status == 'cadastrada' &&
+        !contaSuspensa();
 
       // Atualização permitida nos seguintes casos:
       //
@@ -86,21 +148,22 @@ service cloud.firestore {
       //    modificado, e somente se ainda não estiver setado. Garante
       //    "republicar apenas uma vez" no nível de segurança, não só na UI.
       //
-      // 3. Professor MARCA PARA ANÁLISE (UC09): 'cadastrada' -> 'emAnalise',
-      //    associando a si mesmo. Restringe os campos tocados.
+      // 3. Professor ATIVO marca para análise (UC09): 'cadastrada' ->
+      //    'emAnalise', associando a si mesmo. Restringe os campos tocados.
       //
-      // 4. Professor RESPONSÁVEL conduz as demais transições (UC10 rejeitar,
-      //    UC11 assumir, UC12 concluir). Só pode mexer nos campos do ciclo de
-      //    vida — nunca no conteúdo do demandante. A validação fina da máquina
-      //    de estados (qual status pode ir para qual) é feita pelas transações
-      //    do cliente e, no futuro, por Cloud Functions; aqui garantimos posse
-      //    e superfície mínima de escrita.
+      // 4. Professor ATIVO responsável conduz as demais transições (UC10
+      //    rejeitar, UC11 assumir, UC12 concluir). Só pode mexer nos campos do
+      //    ciclo de vida — nunca no conteúdo do demandante. A validação fina da
+      //    máquina de estados (qual status pode ir para qual) é feita pelas
+      //    transações do cliente e, no futuro, por Cloud Functions; aqui
+      //    garantimos posse e superfície mínima de escrita.
       //
-      // 5. Admin (operações administrativas — sprints futuras).
+      // 5. Admin (operações administrativas).
       allow update: if isSignedIn() && (
         (
           isOwner(resource.data.demandanteUid) &&
-          resource.data.status == 'cadastrada'
+          resource.data.status == 'cadastrada' &&
+          !contaSuspensa()
         ) ||
         (
           isOwner(resource.data.demandanteUid) &&
@@ -113,6 +176,7 @@ service cloud.firestore {
         ) ||
         (
           isProfessorEmail() &&
+          professorAtivo() &&
           resource.data.status == 'cadastrada' &&
           request.resource.data.status == 'emAnalise' &&
           request.resource.data.professorUid == request.auth.uid &&
@@ -123,6 +187,7 @@ service cloud.firestore {
         ) ||
         (
           isProfessorEmail() &&
+          professorAtivo() &&
           resource.data.professorUid == request.auth.uid &&
           request.resource.data.diff(resource.data).affectedKeys().hasOnly([
             'status', 'professorUid', 'professorNome',
@@ -140,7 +205,7 @@ service cloud.firestore {
       // ============== ANEXOS (subcoleção) ==============
       match /anexos/{anexoId} {
         allow read: if isSignedIn() && (
-          isOwner(get(/databases/$(database)/documents/demandas/$(id)).data.demandanteUid) ||
+          isOwner(demanda(id).demandanteUid) ||
           isProfessorEmail() ||
           isAdminEmail()
         );
@@ -149,30 +214,143 @@ service cloud.firestore {
         // pode anexar (UC20 R04). Sprint 3 inclui o professor responsável,
         // necessário para os anexos da entrega (UC12).
         allow create: if isSignedIn() && (
-          isOwner(get(/databases/$(database)/documents/demandas/$(id)).data.demandanteUid) ||
+          (isOwner(demanda(id).demandanteUid) && !contaSuspensa()) ||
           (isProfessorEmail() &&
-            get(/databases/$(database)/documents/demandas/$(id)).data.professorUid == request.auth.uid)
+            professorAtivo() &&
+            demanda(id).professorUid == request.auth.uid)
         );
 
         allow delete: if isSignedIn() && (
-          isOwner(get(/databases/$(database)/documents/demandas/$(id)).data.demandanteUid) ||
+          isOwner(demanda(id).demandanteUid) ||
           (isProfessorEmail() &&
-            get(/databases/$(database)/documents/demandas/$(id)).data.professorUid == request.auth.uid)
+            demanda(id).professorUid == request.auth.uid)
         );
 
         allow update: if false; // anexos são imutáveis
       }
     }
 
+    // ============== CHATS (UC11 R03) ==============
+    // O ID do chat é o `demandaId` — ver docstring de `Chat` no app.
+
+    match /chats/{chatId} {
+      function souParticipante() {
+        return isSignedIn() && request.auth.uid in resource.data.participantes;
+      }
+
+      allow read: if souParticipante() || isAdminEmail();
+
+      // Nasce dentro da transação que move a demanda para 'emProducao'. Só o
+      // professor que já está associado à demanda pode criá-lo — o `get` na
+      // demanda impede que um professor qualquer abra conversa com um
+      // demandante que não é dele.
+      allow create: if isSignedIn() &&
+        isProfessorEmail() &&
+        professorAtivo() &&
+        request.resource.data.professorUid == request.auth.uid &&
+        request.auth.uid in request.resource.data.participantes &&
+        demanda(chatId).professorUid == request.auth.uid;
+
+      allow update: if isSignedIn() && (
+        (
+          // Participantes só mexem no que a conversa produz: prévia da última
+          // mensagem, contadores de não lidas e o encerramento.
+          souParticipante() &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'ultimaMensagem', 'ultimaMensagemAutorUid', 'ultimaMensagemEm',
+            'naoLidas', 'ativo', 'tituloDemanda'
+          ])
+        ) ||
+        (
+          // Reassunção: uma demanda devolvida à prateleira pode ser assumida
+          // por OUTRO professor, que não está nos participantes do chat
+          // antigo. Ele reescreve o documento contanto que a demanda seja
+          // comprovadamente dele.
+          isProfessorEmail() &&
+          professorAtivo() &&
+          request.resource.data.professorUid == request.auth.uid &&
+          demanda(chatId).professorUid == request.auth.uid
+        ) ||
+        isAdminEmail()
+      );
+
+      allow delete: if false;
+
+      match /mensagens/{msgId} {
+        allow read: if isSignedIn() && (
+          request.auth.uid in chatDe(chatId).participantes ||
+          isAdminEmail()
+        );
+
+        // Mensagens de participante exigem conversa ativa; marcos do sistema
+        // (encerramento, criação) são gravados mesmo depois de encerrada.
+        // ! O limite de 2000 caracteres espelha
+        // ! AppConstants.maxCaracteresMensagem — mudar lá exige mudar aqui.
+        allow create: if isSignedIn() &&
+          request.auth.uid in chatDe(chatId).participantes &&
+          request.resource.data.texto is string &&
+          request.resource.data.texto.size() > 0 &&
+          request.resource.data.texto.size() <= 2000 &&
+          (
+            (
+              request.resource.data.get('sistema', false) == false &&
+              request.resource.data.autorUid == request.auth.uid &&
+              chatDe(chatId).get('ativo', true) == true
+            ) ||
+            request.resource.data.get('sistema', false) == true
+          );
+
+        // Histórico imutável: nem editar, nem apagar. Moderação de conteúdo
+        // será feita por Cloud Function com Admin SDK, que ignora estas Rules.
+        allow update, delete: if false;
+      }
+    }
+
+    // ============== DENÚNCIAS ==============
+
+    match /denuncias/{id} {
+      // O denunciado NÃO lê a denúncia: saber quem denunciou exporia o
+      // professor a retaliação. Ele recebe o resultado pela notificação.
+      allow read: if isSignedIn() && (
+        isAdminEmail() || isOwner(resource.data.professorUid)
+      );
+
+      allow create: if isSignedIn() &&
+        isProfessorEmail() &&
+        professorAtivo() &&
+        request.resource.data.professorUid == request.auth.uid &&
+        request.resource.data.status == 'pendente' &&
+        request.resource.data.strikeAplicado == false &&
+        request.resource.data.descricao is string &&
+        request.resource.data.descricao.size() >= 10;
+
+      // O julgamento (e o strike que vem com ele) é exclusividade do admin.
+      allow update: if isAdminEmail();
+      allow delete: if false;
+    }
+
     // ============== NOTIFICAÇÕES ==============
-    // Fila de notificações (UC11/UC12 R04). O app apenas enfileira; o despacho
-    // via FCM e a marcação de `enviada`/`lida` ficam a cargo de uma Cloud
-    // Function (Admin SDK ignora estas Rules). Ver docs/CLOUD_FUNCTIONS.md.
+    // In-app funciona 100% no plano Spark: o app escreve e lê estes documentos
+    // direto. O push via FCM depende de uma Cloud Function que observe esta
+    // coleção e marque `enviada`. Ver docs/CLOUD_FUNCTIONS.md.
+
     match /notificacoes/{id} {
       allow read: if isSignedIn() && isOwner(resource.data.destinatarioUid);
+
+      // `autorUid == request.auth.uid` impede forjar avisos em nome de
+      // terceiros (ex.: uma notificação falsa "de" um administrador).
       allow create: if isSignedIn() &&
-        request.resource.data.autorUid == request.auth.uid;
-      allow update, delete: if false;
+        request.resource.data.autorUid == request.auth.uid &&
+        request.resource.data.lida == false;
+
+      // O destinatário só marca como lida — nunca reescreve o conteúdo.
+      allow update: if isSignedIn() &&
+        isOwner(resource.data.destinatarioUid) &&
+        request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['lida', 'lidaEm']) &&
+        request.resource.data.lida == true;
+
+      allow delete: if false;
     }
 
     // ============== AUDIT LOGS ==============

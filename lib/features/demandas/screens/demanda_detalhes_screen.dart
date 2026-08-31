@@ -7,6 +7,7 @@ import '../../../core/models/anexo.dart';
 import '../../../core/models/demanda.dart';
 import '../../../core/providers/auth_provider.dart';
 import '../../../core/repositories/demanda_repository.dart';
+import '../../chat/screens/chat_screen.dart';
 import '../providers/demanda_form_provider.dart';
 import '../widgets/anexos_visualizacao.dart';
 import '../widgets/cancelar_demanda_dialog.dart';
@@ -244,6 +245,42 @@ class _DemandaDetalhesScreenState extends State<DemandaDetalhesScreen> {
               ),
               const SizedBox(height: 24),
               _Secao(titulo: 'Impacto da Demanda', conteudo: demanda.impacto),
+
+              if (demanda.descricaoSolucao != null) ...[
+                const SizedBox(height: 24),
+                _Secao(
+                  titulo: 'Solução entregue',
+                  conteudo: demanda.descricaoSolucao!,
+                ),
+              ],
+
+              // O canal com o professor nasce quando a demanda é aceita
+              // (UC11 R03) e continua legível depois da entrega.
+              if (demanda.professorUid != null &&
+                  (demanda.status == StatusDemanda.emProducao ||
+                      demanda.status == StatusDemanda.concluida)) ...[
+                const SizedBox(height: 24),
+                OutlinedButton.icon(
+                  onPressed: () => Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => ChatScreen(chatId: demanda.id),
+                    ),
+                  ),
+                  icon: const Icon(Icons.chat_bubble_outline, size: 20),
+                  label: Text(
+                    'Conversar com ${demanda.professorNome ?? "o professor"}',
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.primary,
+                    side: const BorderSide(color: AppColors.primary),
+                    minimumSize: const Size.fromHeight(52),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                ),
+              ],
 
               const SizedBox(height: 24),
               StreamBuilder<List<Anexo>>(
