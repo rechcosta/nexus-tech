@@ -1,5 +1,7 @@
 {
   "projects": {
-    "default": "nexus-tech-2025"
+    "default": "nexus-tech-2025",
+    "prod": "nexus-tech-2025",
+    "dev": "nexus-tech-2025-dev"
   }
 }
